@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tide Exam Kiosk</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      padding: 12px 24px;
+      background: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .badge {
+      background: #0284c7;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 12px 0;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: white;
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="font-weight: 700; font-size: 18px;">🌊 Tide Exam Kiosk</div>
+    <div class="badge">SECURE LAB ENVIRONMENT</div>
+  </header>
+  <main>
+    <div class="card">
+      <h2 style="margin-top: 0;">Join Assessment</h2>
+      <p style="color: #94a3b8; font-size: 14px;">Enter the 6-character access code provided by your instructor.</p>
+      <input type="text" id="accessCode" placeholder="ACCESS CODE" maxlength="6" autofocus />
+      <input type="text" id="studentName" placeholder="Your Full Name" />
+      <input type="text" id="studentId" placeholder="Roll Number / Student ID" />
+      <button id="joinBtn">Enter Exam</button>
+    </div>
+  </main>
+
+  <script>
+    if (window.electronAPI) {
+      window.electronAPI.onTelemetryEvent((data) => {
+        console.log('Kiosk Telemetry:', data);
+        // Will stream to WebSocket hub
+      });
+    }
+  </script>
+</body>
+</html>
