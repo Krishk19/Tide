@@ -32,6 +32,7 @@ Tide/
 ├── 04_Database_Schema_Secure_Lab_Assessment.md# Relational Database Specifications
 ├── 05_Security_AntiCheat_Strategy.md          # Threat Model & Anti-Cheat Approach
 ├── 06_Implementation_Plan_V1_V2_Checklist.md # V1/V2 Feature Matrix & Evaluation Checklist
+├── 07_V1_Detailed_Implementation_Plan.md     # 10-Hour V1 Blueprint & Technical Specs
 ├── server/                                    # FastAPI Backend & Grading Engine
 │   ├── app/
 │   │   ├── api/                               # REST & WebSocket endpoints
