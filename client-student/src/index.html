@@ -1,38 +1,66 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tide Secure Assessment Kiosk</title>
-  <link rel="stylesheet" href="styles.css?v=2.2">
+  <!-- Zero-latency theme initialization before initial paint -->
+  <script>
+    (function() {
+      try {
+        var theme = localStorage.getItem('tide_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css?v=3.0">
 </head>
-<body class="theme-dark">
+<body>
   <!-- Global Kiosk Header -->
   <header>
     <div class="logo-area">
       <div class="logo-mark">T</div>
-      <div class="logo-title">Tide <span>Assessment Kiosk</span></div>
+      <div class="logo-title">
+        Tide <span class="header-divider">/</span> <span>Assessment Kiosk</span>
+      </div>
       <div class="badge" id="sessionBadge">STANDBY</div>
     </div>
     <div class="header-controls">
-      <div id="studentInfoBadge" style="display: none;"></div>
-      <div id="examTimerBadge" class="badge" style="display: none; font-family: var(--font-mono); font-size: 11px;">⏱️ <span id="examTimerText">--:--</span></div>
+      <div id="studentInfoBadge" style="display: none;" class="badge"></div>
+      <div id="examTimerBadge" class="badge" style="display: none; font-family: var(--font-mono);">⏱️ <span id="examTimerText">--:--</span></div>
       <div class="autosave-indicator" id="autosaveIndicator" style="display: none;">
         <div class="pulse-dot"></div>
         <span id="autosaveText">Autosaved</span>
       </div>
-      <!-- Prominent Segmented Dual-Theme Switcher -->
+
+      <!-- Segmented Dual-Theme Switcher (Light / Dark) -->
       <div class="theme-switch-segmented" title="Switch between Light and Dark interface">
-        <button type="button" class="theme-opt-btn" id="themeLightBtn" data-theme-val="light">
-          <span>☀</span> Light
+        <button type="button" class="theme-opt-btn" id="themeLightBtn" data-theme-val="light" aria-label="Light Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <span>Light</span>
         </button>
-        <button type="button" class="theme-opt-btn active" id="themeDarkBtn" data-theme-val="dark">
-          <span>☾</span> Dark
+        <button type="button" class="theme-opt-btn" id="themeDarkBtn" data-theme-val="dark" aria-label="Dark Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span>Dark</span>
         </button>
       </div>
+
       <!-- Hidden legacy button ID fallback for renderer.js -->
       <button id="themeToggleBtn" style="display: none;"></button>
       <span id="themeToggleText" style="display: none;"></span>
+
       <button class="btn-submit" id="headerSubmitBtn" style="display: none;">Submit Assessment</button>
     </div>
   </header>
@@ -40,134 +68,90 @@
   <!-- Real-Time Floating Broadcast Announcement Banner -->
   <div id="broadcastBannerContainer" class="broadcast-banner-container"></div>
 
-  <!-- View 1: Dual-Zone Kiosk Stage -->
+  <!-- View 1: Centered Architectural Join Terminal -->
   <div class="view-container active" id="joinView">
-    <div class="kiosk-stage">
-      
-      <!-- Left Zone: Workstation & Security Readiness -->
-      <div class="kiosk-left-panel">
-        <div class="kiosk-institution-badge">
-          <span class="pulse-indicator"></span>
-          <span>EXAMINATION WORKSTATION · SECURE ENCLAVE</span>
-        </div>
-        <h2 class="kiosk-hero-title">Academic Assessment Terminal</h2>
-        <p class="kiosk-hero-desc">
-          This terminal operates in locked-down kiosk mode. Window switching, unauthorized clipboard transfers, and external monitors are audited continuously.
-        </p>
-
-        <!-- System Readiness Checklist -->
-        <div class="readiness-card">
-          <div class="readiness-title">Workstation Integrity Status</div>
-          <div class="readiness-item">
-            <span class="readiness-icon">✓</span>
-            <div>
-              <div class="readiness-name">Kiosk Sandbox Enforcement</div>
-              <div class="readiness-sub">OS-level process lockdown active</div>
-            </div>
-          </div>
-          <div class="readiness-item">
-            <span class="readiness-icon">✓</span>
-            <div>
-              <div class="readiness-name">LAN Server Connectivity</div>
-              <div class="readiness-sub" id="lanNodeStatusText">Connected to Local Lab Master Clock</div>
-            </div>
-          </div>
-          <div class="readiness-item">
-            <span class="readiness-icon">✓</span>
-            <div>
-              <div class="readiness-name">Continuous Telemetry Heartbeat</div>
-              <div class="readiness-sub">Real-time audit trail synchronized with instructor portal</div>
-            </div>
-          </div>
+    <div class="kiosk-enclave-container">
+      <div class="auth-box">
+        <div class="auth-brand-badge">
+          <span class="security-dot"></span>
+          <span>Secure Examination Enclave</span>
         </div>
 
-        <!-- Lab Rules Summary -->
-        <div class="rules-summary">
-          <div class="rules-header">Examination Code of Conduct</div>
-          <ul class="rules-list">
-            <li>Ensure solution compiles and passes all test suites prior to final submission.</li>
-            <li>Pasting from external applications is logged directly to instructor proctors.</li>
-            <li>Copy and paste within the exam code editor is fully authorized.</li>
-            <li>All progress is autosaved to the lab server continuously.</li>
-          </ul>
+        <div class="auth-header">
+          <h2>Candidate Authentication</h2>
+          <p>Enter the 6-character room access key projected by your proctor along with your candidate credentials.</p>
+        </div>
+
+        <div class="form-group">
+          <label>Exam Access Code</label>
+          <input 
+            type="text" 
+            class="code-input-large" 
+            id="accessCodeInput" 
+            maxlength="10" 
+            placeholder="TID-942" 
+            autofocus 
+            autocomplete="off" 
+            spellcheck="false" 
+          />
+          <span class="input-hint" id="pinStatusHint">Enter the code displayed on the lab projector</span>
+        </div>
+
+        <div class="form-group">
+          <label>Candidate Full Name</label>
+          <input type="text" id="studentNameInput" placeholder="e.g. Aarav Sharma" autocomplete="name" />
+        </div>
+
+        <div class="form-group">
+          <label>Candidate Roll No / Student ID</label>
+          <input type="text" id="studentIdInput" placeholder="e.g. CS2026_042" autocomplete="off" />
+        </div>
+
+        <button class="btn-primary" id="joinBtn">
+          <span>Authorize & Enter Session</span>
+          <span>→</span>
+        </button>
+        <div id="joinError" style="color: var(--status-rose); font-size: 12px; margin-top: 12px; text-align: center; display: none;"></div>
+
+        <div class="server-config-toggle">
+          <button type="button" id="toggleServerSettingsBtn">
+            ⚙ Technician Network Settings
+          </button>
+        </div>
+
+        <div id="serverSettingsContainer" style="display: none; margin-top: 14px; padding: 14px; background: var(--bg-subtle); border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: left;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 11px;">Lab Server Host URL</label>
+            <input type="text" id="serverHostInput" value="http://localhost:8000" placeholder="http://192.168.1.10:8000" style="font-size: 12px; padding: 7px 10px;" />
+            <div class="input-hint">Configured automatically in college lab environments.</div>
+          </div>
         </div>
       </div>
 
-      <!-- Right Zone: Access Key & Candidate Authentication -->
-      <div class="kiosk-right-panel">
-        <div class="auth-box">
-          <div class="auth-header">
-            <h3>Candidate Authentication</h3>
-            <p>Input the 6-character room access code projected by your proctor.</p>
-          </div>
-
-          <!-- Tactile Segmented 6-Box Pin Code Display -->
-          <div class="form-group code-slot-group">
-            <label>Exam Access Code</label>
-            <div class="pin-display-wrapper">
-              <div class="pin-display-container" id="pinDisplayContainer">
-                <div class="pin-slot focused" id="pinSlot0">-</div>
-                <div class="pin-slot" id="pinSlot1">-</div>
-                <div class="pin-slot" id="pinSlot2">-</div>
-                <span class="pin-divider">·</span>
-                <div class="pin-slot" id="pinSlot3">-</div>
-                <div class="pin-slot" id="pinSlot4">-</div>
-                <div class="pin-slot" id="pinSlot5">-</div>
-              </div>
-              <input type="text" class="code-input-hidden" id="accessCodeInput" maxlength="6" placeholder="" autofocus autocomplete="off" spellcheck="false" />
-            </div>
-            <span class="input-hint" id="pinStatusHint">Click boxes and type the 6-character access key</span>
-          </div>
-
-          <div class="form-group">
-            <label>Candidate Full Name</label>
-            <input type="text" id="studentNameInput" placeholder="Aarav Sharma" />
-          </div>
-
-          <div class="form-group">
-            <label>Candidate Roll No / Student ID</label>
-            <input type="text" id="studentIdInput" placeholder="CS2026_042" />
-          </div>
-
-          <button class="btn-primary" id="joinBtn">
-            <span>Authenticate & Initialize Session</span>
-            <span>→</span>
-          </button>
-          <div id="joinError" style="color: var(--status-rose); font-size: 12px; margin-top: 12px; display: none;"></div>
-
-          <!-- Optional Lab Technician Override -->
-          <div class="server-config-toggle">
-            <button type="button" id="toggleServerSettingsBtn">
-              ⚙ Technician Network Configuration
-            </button>
-          </div>
-
-          <div id="serverSettingsContainer" style="display: none; margin-top: 14px; padding: 14px; background: var(--bg-subtle); border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: left;">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label style="font-size: 10px;">Lab Server Host URL</label>
-              <input type="text" id="serverHostInput" value="http://localhost:8000" placeholder="http://192.168.1.10:8000" style="font-size: 12px; padding: 8px 10px;" />
-              <div class="input-hint">LAN host address. Configured automatically in college lab environments.</div>
-            </div>
-          </div>
-        </div>
+      <div class="kiosk-security-footer">
+        <span>🔒 Sandboxed Kiosk</span>
+        <span>•</span>
+        <span>Autosave Active</span>
+        <span>•</span>
+        <span>Audit Synchronized</span>
       </div>
     </div>
   </div>
 
   <!-- View 2: Locked Countdown Screen -->
   <div class="view-container" id="countdownView">
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
-      <div class="auth-box" style="text-align: center; max-width: 480px;">
-        <div class="badge" style="background: rgba(16, 185, 129, 0.12); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 16px; display: inline-block;">IDENTITY VERIFIED</div>
-        <h2 id="countdownStudentName" style="font-size: 22px; font-weight: 700; margin-bottom: 6px;">Aarav Sharma</h2>
+    <div class="kiosk-enclave-container">
+      <div class="auth-box" style="text-align: center;">
+        <div class="badge" style="background: var(--status-emerald-bg); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 14px; display: inline-block;">IDENTITY VERIFIED</div>
+        <h2 id="countdownStudentName" style="font-size: 20px; font-weight: 700; margin-bottom: 6px;">Candidate Verified</h2>
         <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Terminal is locked until scheduled examination start time.</p>
         
         <div class="countdown-box">
-          <div style="font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-tertiary); margin-bottom: 8px;">Starts In</div>
+          <div style="font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-tertiary); margin-bottom: 8px;">Examination Starts In</div>
           <div class="countdown-digits" id="countdownDigits">00:00:00</div>
         </div>
 
-        <p style="font-size: 12px; color: var(--text-tertiary);">Enforced by server master clock. The problem specification will unlock automatically.</p>
+        <p style="font-size: 12px; color: var(--text-tertiary);">Enforced by server master clock. The problem workspace will unlock automatically.</p>
       </div>
     </div>
   </div>
@@ -178,7 +162,6 @@
     <div class="left-panel">
       <div class="panel-tab-bar">
         <div class="panel-tab active">Problem Specification</div>
-        <div class="panel-tab">Constraints & I/O</div>
       </div>
       <div class="problem-content">
         <div class="problem-header">
@@ -215,7 +198,7 @@
         <div class="action-bar">
           <button class="btn-secondary" id="runTestsBtn" style="display: flex; align-items: center; gap: 8px;">
             <span>Run Tests</span>
-            <span style="font-family: var(--font-mono); font-size: 10px; background: var(--bg-subtle); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border-hairline);">Ctrl+↵</span>
+            <span style="font-family: var(--font-mono); font-size: 10px; opacity: 0.7; background: var(--bg-subtle); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border-hairline);">Ctrl+↵</span>
           </button>
         </div>
       </div>
@@ -226,7 +209,7 @@
 
       <div class="console-drawer">
         <div class="console-header">
-          <span class="console-title">Execution Sandbox Console</span>
+          <span class="console-title">Execution Console</span>
           <span id="consoleTimeBadge" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">Ready</span>
         </div>
         <div class="console-body" id="consoleBody">
@@ -238,19 +221,19 @@
 
   <!-- View 4: Completed / Submitted Screen -->
   <div class="view-container" id="submittedView">
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
-      <div class="auth-box" style="text-align: center; max-width: 480px;">
-        <div class="badge" style="background: rgba(16, 185, 129, 0.12); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 14px; display: inline-block;">ASSESSMENT RECORDED</div>
-        <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px;">Submission Confirmed</h1>
-        <p style="font-size: 13px; color: var(--text-secondary);">Your solution has been graded against both visible and hidden test suites.</p>
+    <div class="kiosk-enclave-container">
+      <div class="auth-box" style="text-align: center;">
+        <div class="badge" style="background: var(--status-emerald-bg); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 14px; display: inline-block;">ASSESSMENT RECORDED</div>
+        <h1 style="font-size: 21px; font-weight: 700; margin-bottom: 6px;">Submission Confirmed</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Your solution has been submitted and evaluated against all test suites.</p>
         
         <div class="countdown-box" style="margin: 20px 0;">
-          <div style="font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 6px;">Evaluation Score</div>
-          <div style="font-size: 44px; font-weight: 800; font-family: var(--font-mono); color: var(--text-primary);" id="finalScoreText">100%</div>
+          <div style="font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 6px;">Evaluation Result</div>
+          <div style="font-size: 42px; font-weight: 800; font-family: var(--font-mono); color: var(--text-primary);" id="finalScoreText">100%</div>
           <div style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;" id="finalScoreDetails">Passed all test cases</div>
         </div>
 
-        <p style="font-size: 12px; color: var(--text-tertiary);">Assessment session closed. You may now notify your laboratory proctor.</p>
+        <p style="font-size: 12px; color: var(--text-tertiary);">Session finalized. Please notify your laboratory proctor before vacating your terminal.</p>
         <button class="btn-secondary" id="exitKioskBtn" style="margin-top: 18px; width: 100%;">Exit Exam Kiosk</button>
       </div>
     </div>
@@ -273,36 +256,36 @@
   <!-- Fullscreen Required Gate Modal -->
   <div class="modal-overlay" id="fullscreenGateModal">
     <div class="modal-content">
-      <div class="badge" style="margin-bottom: 16px; display: inline-block;">KIOSK LOCKDOWN</div>
+      <div class="badge" style="margin-bottom: 14px; display: inline-block;">KIOSK ENFORCEMENT</div>
       <h2>Fullscreen Required</h2>
       <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin: 12px 0 22px;">
-        To ensure examination integrity, Tide strictly requires the screen to be in locked fullscreen mode before the session begins.
+        To ensure examination integrity, Tide strictly requires the workstation to be locked in fullscreen mode.
       </p>
-      <button class="btn-primary" id="enableFullscreenBtn" style="padding: 12px 24px;">Enter Fullscreen & Begin</button>
+      <button class="btn-primary" id="enableFullscreenBtn" style="padding: 11px 22px;">Enter Fullscreen & Begin</button>
     </div>
   </div>
 
   <!-- Fullscreen Exit Lockout Overlay -->
-  <div class="modal-overlay" id="fullscreenLockoutOverlay" style="background: rgba(6, 7, 10, 0.95); z-index: 9999;">
-    <div class="modal-content" style="border: 1px solid var(--status-rose);">
-      <div class="badge" style="background: rgba(244, 63, 94, 0.15); color: var(--status-rose); border-color: rgba(244, 63, 94, 0.3); margin-bottom: 16px; display: inline-block;">SECURITY EXCEPTION</div>
+  <div class="modal-overlay" id="fullscreenLockoutOverlay">
+    <div class="modal-content" style="border-color: var(--status-rose);">
+      <div class="badge" style="background: var(--status-rose-bg); color: var(--status-rose); border-color: rgba(244, 63, 94, 0.3); margin-bottom: 14px; display: inline-block;">SECURITY EXCEPTION</div>
       <h2 style="color: var(--status-rose);">Fullscreen Lockout Detected</h2>
       <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin: 12px 0 22px;">
-        Window focus or fullscreen exit was detected and logged to instructor telemetry. You must re-enter fullscreen to continue.
+        Workstation focus loss or fullscreen exit was detected and logged to instructor telemetry. Re-enter fullscreen to continue.
       </p>
-      <button class="btn-primary" id="resumeFullscreenBtn" style="padding: 12px 24px;">Resume Fullscreen</button>
+      <button class="btn-primary" id="resumeFullscreenBtn" style="padding: 11px 22px;">Resume Fullscreen</button>
     </div>
   </div>
 
   <!-- Remote Instructor Warning Modal -->
-  <div class="modal-overlay" id="directWarningModal" style="background: rgba(10, 10, 15, 0.92); z-index: 9998;">
-    <div class="modal-content" style="border: 1px solid var(--status-amber); max-width: 480px;">
-      <div class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--status-amber); border-color: rgba(245, 158, 11, 0.3); margin-bottom: 16px; display: inline-block;">INSTRUCTOR NOTIFICATION</div>
+  <div class="modal-overlay" id="directWarningModal">
+    <div class="modal-content" style="border-color: var(--status-amber); max-width: 460px;">
+      <div class="badge" style="background: var(--status-amber-bg); color: var(--status-amber); border-color: rgba(245, 158, 11, 0.3); margin-bottom: 14px; display: inline-block;">PROCTOR DIRECTIVE</div>
       <h2 style="color: var(--status-amber);">Official Proctor Warning</h2>
-      <p id="directWarningMessageText" style="color: var(--text-primary); font-size: 14px; line-height: 1.6; margin: 16px 0 24px; padding: 14px; background: rgba(245, 158, 11, 0.08); border-radius: 6px; border-left: 3px solid var(--status-amber); text-align: left;">
+      <p id="directWarningMessageText" style="color: var(--text-primary); font-size: 13.5px; line-height: 1.6; margin: 16px 0 24px; padding: 14px; background: var(--status-amber-bg); border-radius: 6px; border-left: 3px solid var(--status-amber); text-align: left;">
         Warning from instructor...
       </p>
-      <button class="btn-primary" id="ackWarningBtn" style="padding: 10px 24px; width: 100%;">I Understand & Acknowledge</button>
+      <button class="btn-primary" id="ackWarningBtn" style="padding: 10px 22px; width: 100%;">I Understand & Acknowledge</button>
     </div>
   </div>
 

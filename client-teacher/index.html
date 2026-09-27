@@ -28,6 +28,7 @@
       <button class="nav-btn active" data-view="liveMonitorSection">Live Monitor</button>
       <button class="nav-btn" data-view="sessionsSection">Sessions</button>
       <button class="nav-btn" data-view="assignmentsSection">Assignments</button>
+      <button class="nav-btn" data-view="similaritySection">AST Similarity</button>
     </nav>
 
     <div class="user-controls">
@@ -245,6 +246,66 @@
         <!-- Dynamically populated assignment cards -->
       </div>
     </section>
+
+    <!-- View 4: AST Similarity Studio -->
+    <section class="view-section" id="similaritySection">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 700;">AST Code Similarity & Plagiarism Studio</h2>
+          <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 0;">Python AST canonicalization, alpha-renaming, and k-gram structural analysis with multi-signal correlation.</p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <select id="similaritySessionSelect" style="font-size: 12px; padding: 6px 10px; min-width: 220px;"></select>
+          <select id="similarityThresholdSelect" style="font-size: 12px; padding: 6px 10px;">
+            <option value="50">Min 50% Match</option>
+            <option value="65" selected>Min 65% Match</option>
+            <option value="75">Min 75% Match</option>
+            <option value="85">Min 85% Match</option>
+          </select>
+          <button class="btn btn-primary" id="runSimilarityScanBtn" style="font-size: 12px; padding: 6px 14px;">⚡ Run AST Scan</button>
+        </div>
+      </div>
+
+      <!-- KPI Highlights Cards -->
+      <div class="grid-3" style="margin-bottom: 20px;">
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.5px;">Students Compared</div>
+          <div id="simKpiStudents" style="font-size: 24px; font-weight: 700; margin-top: 4px; font-family: var(--font-mono);">0</div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.5px;">Pairwise Combinations</div>
+          <div id="simKpiPairs" style="font-size: 24px; font-weight: 700; margin-top: 4px; font-family: var(--font-mono);">0</div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; color: #f43f5e; letter-spacing: 0.5px;">Flagged Suspicious Pairs</div>
+          <div id="simKpiFlagged" style="font-size: 24px; font-weight: 700; margin-top: 4px; font-family: var(--font-mono); color: #f43f5e;">0</div>
+        </div>
+      </div>
+
+      <!-- Similarity Matrix Table -->
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px;">Rank</th>
+              <th>Student A</th>
+              <th>Student B</th>
+              <th>Structural Match</th>
+              <th>Language</th>
+              <th>Correlation & Heuristic Tags</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="similarityTableBody">
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 36px 20px;">
+                Select a session above and click "Run AST Scan" to detect cross-student code similarity.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <!-- Modal: Launch Session -->
@@ -451,6 +512,60 @@
               <option value="10">10x Speed</option>
             </select>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Side-by-Side Similarity Diff Studio -->
+  <div class="modal" id="similarityDiffModal">
+    <div class="modal-box" style="max-width: 1040px; width: 95%; max-height: 92vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Side-by-Side Code Diff Studio</h3>
+          <span class="badge" id="simDiffScoreBadge" style="background: rgba(244, 63, 94, 0.15); color: #fda4af; font-size: 12px; font-weight: 700;">0% Match</span>
+        </div>
+        <button class="btn btn-secondary" id="closeSimilarityDiffModalBtn" style="padding: 4px 8px;">✕ Close</button>
+      </div>
+
+      <!-- Correlation Tags Container -->
+      <div id="simDiffCorrelationTags" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;"></div>
+
+      <!-- Side-by-Side Dual Code Windows -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 380px; max-height: 480px; margin-bottom: 12px;">
+        <!-- Left Pane: Student A -->
+        <div style="display: flex; flex-direction: column; background: var(--code-box-bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--bg-subtle); border-bottom: 1px solid var(--border); font-size: 12px;">
+            <div>
+              <strong id="simDiffStudentAName" style="color: var(--text);">Student A</strong>
+              <span id="simDiffStudentARoll" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); margin-left: 6px;"></span>
+            </div>
+            <span id="simDiffStudentAMeta" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">0 lines</span>
+          </div>
+          <pre id="simDiffCodeA" style="flex: 1; padding: 12px; margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--code-box-text); overflow: auto; white-space: pre-wrap; word-break: break-all; user-select: text;"></pre>
+        </div>
+
+        <!-- Right Pane: Student B -->
+        <div style="display: flex; flex-direction: column; background: var(--code-box-bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--bg-subtle); border-bottom: 1px solid var(--border); font-size: 12px;">
+            <div>
+              <strong id="simDiffStudentBName" style="color: var(--text);">Student B</strong>
+              <span id="simDiffStudentBRoll" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); margin-left: 6px;"></span>
+            </div>
+            <span id="simDiffStudentBMeta" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">0 lines</span>
+          </div>
+          <pre id="simDiffCodeB" style="flex: 1; padding: 12px; margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--code-box-text); overflow: auto; white-space: pre-wrap; word-break: break-all; user-select: text;"></pre>
+        </div>
+      </div>
+
+      <!-- Bottom: Unified Diff / Token Analysis Drawer -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" id="simDiffUnifiedToggle">
+          <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Text Diff & AST Token Comparison</span>
+          <span style="font-size: 11px; font-family: var(--font-mono); color: var(--accent);" id="simDiffToggleLabel">Toggle Raw Diff ▾</span>
+        </div>
+        <div id="simDiffUnifiedBody" style="display: none; margin-top: 10px;">
+          <pre id="simDiffUnifiedText" style="padding: 10px; max-height: 160px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--code-box-text); margin: 0; white-space: pre-wrap;"></pre>
         </div>
       </div>
     </div>

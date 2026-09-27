@@ -20,7 +20,30 @@ if (window.location.protocol.startsWith('http')) {
   state.serverUrl = localStorage.getItem('tide_server_url');
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+// Initialize theme immediately on script evaluation
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  if (document.body) {
+    document.body.className = 'theme-' + theme;
+  }
+  try {
+    localStorage.setItem('tide_theme', theme);
+  } catch (e) {}
+
+  const themeLightBtn = document.getElementById('themeLightBtn');
+  const themeDarkBtn = document.getElementById('themeDarkBtn');
+  if (themeLightBtn && themeDarkBtn) {
+    if (theme === 'light') {
+      themeLightBtn.classList.add('active');
+      themeDarkBtn.classList.remove('active');
+    } else {
+      themeDarkBtn.classList.add('active');
+      themeLightBtn.classList.remove('active');
+    }
+  }
+}
+
+function initUIControls() {
   const serverHostInput = document.getElementById('serverHostInput');
   if (serverHostInput) {
     serverHostInput.value = state.serverUrl;
@@ -29,10 +52,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const toggleSettingsBtn = document.getElementById('toggleServerSettingsBtn');
   const settingsContainer = document.getElementById('serverSettingsContainer');
   if (toggleSettingsBtn && settingsContainer) {
-    toggleSettingsBtn.addEventListener('click', () => {
+    toggleSettingsBtn.onclick = () => {
       const isHidden = settingsContainer.style.display === 'none';
       settingsContainer.style.display = isHidden ? 'block' : 'none';
-    });
+    };
   }
 
   // Segmented Theme Toggle (Light / Dark mode)
@@ -43,94 +66,45 @@ window.addEventListener('DOMContentLoaded', () => {
   applyTheme(savedTheme);
 
   if (themeLightBtn) {
-    themeLightBtn.addEventListener('click', () => applyTheme('light'));
+    themeLightBtn.onclick = () => applyTheme('light');
   }
   if (themeDarkBtn) {
-    themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+    themeDarkBtn.onclick = () => applyTheme('dark');
   }
   if (legacyToggleBtn) {
-    legacyToggleBtn.addEventListener('click', () => {
+    legacyToggleBtn.onclick = () => {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
       applyTheme(current === 'dark' ? 'light' : 'dark');
-    });
+    };
   }
 
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    document.body.className = 'theme-' + theme;
-    localStorage.setItem('tide_theme', theme);
-
-    if (themeLightBtn && themeDarkBtn) {
-      if (theme === 'light') {
-        themeLightBtn.classList.add('active');
-        themeDarkBtn.classList.remove('active');
-      } else {
-        themeDarkBtn.classList.add('active');
-        themeLightBtn.classList.remove('active');
-      }
-    }
-  }
-
-  // Interactive 6-Pin Slot Syncer
+  // Robust Access Code Formatting & Status Hint
   const accessCodeInput = document.getElementById('accessCodeInput');
-  const pinContainer = document.getElementById('pinDisplayContainer');
   const pinStatusHint = document.getElementById('pinStatusHint');
 
   if (accessCodeInput) {
-    accessCodeInput.addEventListener('input', updatePinSlots);
-    accessCodeInput.addEventListener('focus', () => updatePinFocus(true));
-    accessCodeInput.addEventListener('blur', () => updatePinFocus(false));
-    if (pinContainer) {
-      pinContainer.addEventListener('click', () => accessCodeInput.focus());
-    }
-  }
+    accessCodeInput.addEventListener('input', () => {
+      const val = accessCodeInput.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      accessCodeInput.value = val;
 
-  function updatePinSlots() {
-    if (!accessCodeInput) return;
-    const val = accessCodeInput.value.toUpperCase();
-    accessCodeInput.value = val;
-
-    for (let i = 0; i < 6; i++) {
-      const slot = document.getElementById(`pinSlot${i}`);
-      if (!slot) continue;
-      if (i < val.length) {
-        slot.innerText = val[i];
-        slot.classList.add('filled');
-        slot.classList.remove('focused');
-      } else {
-        slot.innerText = '-';
-        slot.classList.remove('filled');
-        if (i === val.length && document.activeElement === accessCodeInput) {
-          slot.classList.add('focused');
+      if (pinStatusHint) {
+        if (val.length >= 6) {
+          pinStatusHint.innerHTML = '<span style="color: var(--status-emerald); font-weight: 600;">✓ Access Key Ready</span>';
         } else {
-          slot.classList.remove('focused');
+          pinStatusHint.innerText = 'Enter the code displayed on the lab projector';
         }
       }
-    }
-
-    if (pinStatusHint) {
-      if (val.length === 6) {
-        pinStatusHint.innerHTML = '<span style="color: var(--status-emerald); font-weight: 600;">✓ 6-Digit Access Key Format Verified</span>';
-      } else {
-        pinStatusHint.innerText = 'Enter 6-character room access key projected on screen';
-      }
-    }
+    });
   }
+}
 
-  function updatePinFocus(isFocused) {
-    if (!accessCodeInput) return;
-    const len = accessCodeInput.value.length;
-    for (let i = 0; i < 6; i++) {
-      const slot = document.getElementById(`pinSlot${i}`);
-      if (!slot) continue;
-      if (isFocused && i === Math.min(len, 5)) {
-        slot.classList.add('focused');
-      } else if (!slot.classList.contains('filled')) {
-        slot.classList.remove('focused');
-      }
-    }
-  }
-});
+// Run UI initialization immediately or on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUIControls);
+} else {
+  initUIControls();
+}
+
 
 // Internal Clipboard Tracker:
 // Allows copying/pasting within the exam window without generating flags!
@@ -406,9 +380,9 @@ async function executeJoinFlow() {
 
     // Update Header
     sessionBadge.innerText = `SESSION: ${state.accessCode}`;
-    sessionBadge.style.background = 'rgba(255, 255, 255, 0.08)';
-    sessionBadge.style.color = '#ededed';
-    sessionBadge.style.border = '1px solid rgba(255, 255, 255, 0.16)';
+    sessionBadge.style.background = 'var(--bg-subtle)';
+    sessionBadge.style.color = 'var(--text-primary)';
+    sessionBadge.style.borderColor = 'var(--border-subtle)';
     studentInfoBadge.innerText = `${state.studentName} (${state.studentIdentifier})`;
     studentInfoBadge.style.display = 'block';
 
@@ -616,9 +590,23 @@ function loadExamEnvironment(data) {
     state.currentLanguage = data.saved_language;
   }
 
-  // Setup Autosave & Paste Listeners on Textarea
+  // Setup Autosave, Tab key indentation, and Paste Listeners on Textarea
   textarea.addEventListener('input', triggerAutosave);
   textarea.addEventListener('paste', handleEditorPaste);
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + 4;
+      triggerAutosave();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const runBtn = document.getElementById('runTestsBtn');
+      if (runBtn && !runBtn.disabled) runBtn.click();
+    }
+  });
 }
 
 function escapeHtml(text) {

@@ -1,7 +1,7 @@
 /* ==========================================================================
-   TIDE SECURE ASSESSMENT KIOSK — HUMAN-DESIGNED DUAL-THEME ENGINE
-   Visual Architecture: High-Craft Swiss Functionalism & Tactile Hardware
-   Complete Light & Dark Modes with zero specificity conflicts.
+   TIDE SECURE ASSESSMENT KIOSK — HUMAN-CRAFTED MINIMAL DESIGN SYSTEM
+   Aesthetics: High-Craft Swiss Functionalism, Architectural Neutrals (Linear / Minimal Gallery)
+   Complete Dual-Theme Engine (Light & Dark) with 100% theme reliability.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -10,43 +10,40 @@
 :root,
 html[data-theme="dark"],
 body.theme-dark {
-  --bg-app: #08090c;
-  --bg-canvas-pattern: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
-  --bg-panel: #101217;
-  --bg-panel-elevated: #161820;
-  --bg-card-gradient: linear-gradient(180deg, #13151c 0%, #0e1015 100%);
-  --bg-subtle: #191c24;
-  --bg-well: #0a0b0f;
-  --bg-input: #0c0d12;
+  --bg-app: #09090b;
+  --bg-panel: #121215;
+  --bg-panel-elevated: #18181c;
+  --bg-surface: #1e1e24;
+  --bg-subtle: #141418;
+  --bg-well: #0e0e11;
+  --bg-input: #101014;
 
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.14);
-  --border-focus: rgba(56, 189, 248, 0.7);
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-medium: rgba(255, 255, 255, 0.2);
+  --border-focus: #f4f4f5;
 
-  --text-primary: #f4f4f6;
-  --text-secondary: #9da1b0;
-  --text-tertiary: #676c7c;
-  --text-muted: #484c59;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-muted: #52525b;
 
-  --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 24px 48px -12px rgba(0, 0, 0, 0.8);
-  --card-top-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+  --modal-backdrop: rgba(0, 0, 0, 0.75);
 
   --btn-primary-bg: #f4f4f5;
-  --btn-primary-text: #090a0d;
+  --btn-primary-text: #09090b;
   --btn-primary-hover: #ffffff;
-  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(255, 255, 255, 0.15);
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 
   --btn-secondary-bg: rgba(255, 255, 255, 0.05);
   --btn-secondary-border: rgba(255, 255, 255, 0.1);
   --btn-secondary-hover: rgba(255, 255, 255, 0.09);
 
-  --pin-slot-bg: #0d0f14;
-  --pin-slot-border: rgba(255, 255, 255, 0.12);
-  --pin-slot-active-border: #38bdf8;
-  --pin-slot-active-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
-
-  --editor-bg: #0d0e12;
-  --editor-text: #e4e4e7;
+  --editor-bg: #0d0d10;
+  --editor-gutter-bg: #0a0a0d;
+  --editor-gutter-text: #52525b;
+  --editor-text: #f4f4f5;
 
   --status-emerald: #10b981;
   --status-emerald-bg: rgba(16, 185, 129, 0.12);
@@ -54,55 +51,53 @@ body.theme-dark {
   --status-amber-bg: rgba(245, 158, 11, 0.12);
   --status-rose: #f43f5e;
   --status-rose-bg: rgba(244, 63, 94, 0.12);
-  --accent-cyan: #38bdf8;
+  --accent-blue: #38bdf8;
+  --accent-blue-bg: rgba(56, 189, 248, 0.12);
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Geist", "Inter", "Segoe UI", Roboto, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
 }
 
 /* --------------------------------------------------------------------------
-   2. Design Tokens: Light Theme (Stripe & Linear Editorial Quality)
+   2. Design Tokens: Light Theme (Architectural Paper & Precision Neutrals)
    -------------------------------------------------------------------------- */
 html[data-theme="light"],
 body.theme-light,
 [data-theme="light"] {
-  --bg-app: #f6f7fa;
-  --bg-canvas-pattern: radial-gradient(rgba(15, 23, 42, 0.07) 1px, transparent 1px);
+  --bg-app: #f8f9fa;
   --bg-panel: #ffffff;
   --bg-panel-elevated: #fafafa;
-  --bg-card-gradient: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-  --bg-subtle: #f1f3f7;
-  --bg-well: #f8fafc;
+  --bg-surface: #f1f3f5;
+  --bg-subtle: #f4f5f7;
+  --bg-well: #f5f6f8;
   --bg-input: #ffffff;
 
   --border-hairline: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.13);
-  --border-focus: #0f172a;
+  --border-subtle: rgba(0, 0, 0, 0.14);
+  --border-medium: rgba(0, 0, 0, 0.22);
+  --border-focus: #09090b;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #09090b;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
 
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 20px 40px -15px rgba(15, 23, 42, 0.08);
-  --card-top-highlight: inset 0 1px 0 rgba(255, 255, 255, 1);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 20px 35px -10px rgba(0, 0, 0, 0.07);
+  --modal-backdrop: rgba(15, 23, 42, 0.45);
 
-  --btn-primary-bg: #0f172a;
+  --btn-primary-bg: #09090b;
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: #1e293b;
-  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(15, 23, 42, 0.15);
+  --btn-primary-hover: #1f2937;
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 
   --btn-secondary-bg: #ffffff;
   --btn-secondary-border: rgba(0, 0, 0, 0.12);
-  --btn-secondary-hover: #f1f5f9;
-
-  --pin-slot-bg: #ffffff;
-  --pin-slot-border: rgba(0, 0, 0, 0.15);
-  --pin-slot-active-border: #0f172a;
-  --pin-slot-active-shadow: 0 0 0 2px rgba(15, 23, 42, 0.15);
+  --btn-secondary-hover: #f3f4f6;
 
   --editor-bg: #ffffff;
-  --editor-text: #0f172a;
+  --editor-gutter-bg: #f9fafb;
+  --editor-gutter-text: #9ca3af;
+  --editor-text: #09090b;
 
   --status-emerald: #059669;
   --status-emerald-bg: rgba(5, 150, 105, 0.1);
@@ -110,11 +105,12 @@ body.theme-light,
   --status-amber-bg: rgba(217, 119, 6, 0.1);
   --status-rose: #e11d48;
   --status-rose-bg: rgba(225, 29, 72, 0.1);
-  --accent-cyan: #0284c7;
+  --accent-blue: #0284c7;
+  --accent-blue-bg: rgba(2, 132, 199, 0.1);
 }
 
 /* --------------------------------------------------------------------------
-   3. Global Base & Reset
+   3. Global Base & Layout Reset
    -------------------------------------------------------------------------- */
 * {
   box-sizing: border-box;
@@ -138,22 +134,25 @@ body.theme-light,
   background: var(--text-muted);
 }
 
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   background-color: var(--bg-app);
-  background-image: var(--bg-canvas-pattern);
-  background-size: 24px 24px;
   color: var(--text-primary);
   font-family: var(--font-ui);
-  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* --------------------------------------------------------------------------
-   4. Global Header Bar
+   4. Minimalist Navigation & Header Bar
    -------------------------------------------------------------------------- */
 header {
   height: 52px;
@@ -162,9 +161,10 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 24px;
   z-index: 100;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .logo-area {
@@ -174,8 +174,8 @@ header {
 }
 
 .logo-mark {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
@@ -183,27 +183,30 @@ header {
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 14px;
-  letter-spacing: -0.05em;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  letter-spacing: -0.04em;
 }
 
 .logo-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13.5px;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
 }
 
 .logo-title span {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
+}
+
+.header-divider {
+  color: var(--border-subtle);
+  font-weight: 300;
 }
 
 .badge {
@@ -211,18 +214,18 @@ header {
   background: var(--bg-subtle);
   color: var(--text-secondary);
   border: 1px solid var(--border-hairline);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 4px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .autosave-indicator {
@@ -243,10 +246,9 @@ header {
   height: 6px;
   border-radius: 50%;
   background-color: var(--status-emerald);
-  box-shadow: 0 0 6px var(--status-emerald);
 }
 
-/* Segmented Theme Switcher (High Visibility) */
+/* Segmented Theme Switcher (Awwwards / Minimal Gallery Grade) */
 .theme-switch-segmented {
   display: flex;
   align-items: center;
@@ -261,7 +263,7 @@ header {
   background: transparent;
   border: none;
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-tertiary);
   padding: 4px 10px;
@@ -269,8 +271,15 @@ header {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.theme-opt-btn svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
 }
 
 .theme-opt-btn:hover {
@@ -280,16 +289,21 @@ header {
 .theme-opt-btn.active {
   background: var(--bg-panel);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.theme-opt-btn.active svg {
+  opacity: 1;
 }
 
 /* --------------------------------------------------------------------------
-   5. Views Manager
+   5. Views Management
    -------------------------------------------------------------------------- */
 .view-container {
   flex: 1;
   display: none;
   overflow: hidden;
+  height: calc(100vh - 52px);
 }
 
 .view-container.active {
@@ -297,180 +311,54 @@ header {
 }
 
 /* --------------------------------------------------------------------------
-   6. View 1: Dual-Zone Kiosk Stage (Welcome & Access Key)
+   6. View 1: Centered Architectural Join Terminal
    -------------------------------------------------------------------------- */
-.kiosk-stage {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  height: 100%;
+#joinView {
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-app);
+  padding: 24px;
   overflow-y: auto;
 }
 
-/* Left Panel: Environment Context & Integrity Status */
-.kiosk-left-panel {
-  padding: 56px 64px;
+.kiosk-enclave-container {
+  width: 100%;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  background: var(--bg-well);
-  border-right: 1px solid var(--border-hairline);
-}
-
-.kiosk-institution-badge {
-  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 16px;
-}
-
-.pulse-indicator {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-emerald);
-}
-
-.kiosk-hero-title {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--text-primary);
-  line-height: 1.2;
-  margin-bottom: 12px;
-}
-
-.kiosk-hero-desc {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin-bottom: 32px;
-  max-width: 520px;
-}
-
-/* Readiness Checklist Card */
-.readiness-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-hairline);
-  border-radius: 10px;
-  padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: var(--card-shadow);
-  box-shadow: var(--card-top-highlight);
-}
-
-.readiness-title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-tertiary);
-  margin-bottom: 14px;
-}
-
-.readiness-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.readiness-item:last-child {
-  margin-bottom: 0;
-}
-
-.readiness-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--status-emerald-bg);
-  color: var(--status-emerald);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.readiness-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.readiness-sub {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin-top: 2px;
-}
-
-/* Exam Conduct Rules */
-.rules-summary {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-hairline);
-  border-radius: 8px;
-  padding: 16px 18px;
-}
-
-.rules-header {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-}
-
-.rules-list {
-  list-style: none;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-}
-
-.rules-list li::before {
-  content: "•";
-  color: var(--text-muted);
-  display: inline-block;
-  width: 1em;
-  margin-left: -0.2em;
-}
-
-/* Right Panel: Authentication Enclave */
-.kiosk-right-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: var(--bg-app);
 }
 
 .auth-box {
   width: 100%;
-  max-width: 420px;
   background: var(--bg-panel);
-  background-image: var(--bg-card-gradient);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-hairline);
   border-radius: 12px;
-  padding: 40px 34px;
+  padding: 36px 32px;
   box-shadow: var(--card-shadow);
-  box-shadow: var(--card-top-highlight);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
 }
 
 .auth-header {
-  margin-bottom: 24px;
+  margin-bottom: 26px;
+  text-align: left;
 }
 
-.auth-header h3 {
-  font-size: 20px;
+.auth-header h2 {
+  font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -491,11 +379,21 @@ header {
 .form-group label {
   display: block;
   font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
   margin-bottom: 6px;
+}
+
+/* Clean, Direct Access Code Input */
+.code-input-large {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 12px 14px;
 }
 
 input, select {
@@ -503,12 +401,12 @@ input, select {
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
-  padding: 11px 13px;
+  padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
   font-family: var(--font-ui);
   outline: none;
-  transition: all 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 input:focus, select:focus {
@@ -527,85 +425,23 @@ input::placeholder {
   margin-top: 5px;
 }
 
-/* Segmented 6-Character Interactive Access Code Tiles */
-.pin-display-wrapper {
-  position: relative;
-  margin-bottom: 4px;
-}
-
-.pin-display-container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  cursor: text;
-}
-
-.pin-slot {
-  flex: 1;
-  height: 48px;
-  background: var(--pin-slot-bg);
-  border: 1px solid var(--pin-slot-border);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pin-slot.filled {
-  border-color: var(--border-focus);
-  box-shadow: var(--pin-slot-active-shadow);
-}
-
-.pin-slot.focused {
-  border-color: var(--pin-slot-active-border);
-  box-shadow: var(--pin-slot-active-shadow);
-  transform: translateY(-1px);
-}
-
-.pin-divider {
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-  user-select: none;
-}
-
-/* Hidden absolute input covering the pin slots */
-.code-input-hidden {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: text;
-  z-index: 10;
-}
-
-/* High-Impact Primary Button */
+/* High-Craft Buttons */
 .btn-primary {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
-  border: none;
-  padding: 13px 20px;
+  border: 1px solid transparent;
+  padding: 11px 18px;
   border-radius: 6px;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   cursor: pointer;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
   box-shadow: var(--btn-primary-shadow);
   transition: all 0.15s ease;
 }
@@ -616,11 +452,11 @@ input::placeholder {
 }
 
 .btn-primary:active {
-  transform: translateY(1px);
+  transform: translateY(0);
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
@@ -632,7 +468,7 @@ input::placeholder {
   padding: 7px 14px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -646,10 +482,10 @@ input::placeholder {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
   border: none;
-  padding: 7px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
   cursor: pointer;
   box-shadow: var(--btn-primary-shadow);
   transition: all 0.15s ease;
@@ -659,41 +495,68 @@ input::placeholder {
   background: var(--btn-primary-hover);
 }
 
+/* Security Footnote */
+.kiosk-security-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.security-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--status-emerald);
+}
+
 .server-config-toggle {
   text-align: center;
-  margin-top: 20px;
+  margin-top: 14px;
 }
 
 .server-config-toggle button {
   background: none;
   border: none;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
   font-family: var(--font-mono);
   cursor: pointer;
 }
 
 .server-config-toggle button:hover {
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 /* --------------------------------------------------------------------------
    7. View 2: Locked Countdown Screen
    -------------------------------------------------------------------------- */
+#countdownView {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-app);
+}
+
 .countdown-box {
   background: var(--bg-well);
   border: 1px solid var(--border-hairline);
-  padding: 24px 20px;
+  padding: 28px 20px;
   border-radius: 8px;
-  margin: 20px 0;
+  margin: 22px 0;
+  text-align: center;
 }
 
 .countdown-digits {
-  font-size: 48px;
+  font-size: 46px;
   font-weight: 800;
   font-family: var(--font-mono);
   color: var(--text-primary);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -702,8 +565,11 @@ input::placeholder {
    -------------------------------------------------------------------------- */
 #examView {
   flex-direction: row;
+  height: calc(100vh - 52px);
+  overflow: hidden;
 }
 
+/* Left Panel: Problem Specification */
 .left-panel {
   width: 44%;
   border-right: 1px solid var(--border-hairline);
@@ -721,13 +587,13 @@ input::placeholder {
   align-items: center;
   padding: 0 16px;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .panel-tab {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   color: var(--text-tertiary);
   padding: 4px 10px;
   border-radius: 4px;
@@ -741,6 +607,7 @@ input::placeholder {
 
 .problem-content {
   padding: 28px 24px;
+  flex: 1;
 }
 
 .problem-header {
@@ -750,23 +617,24 @@ input::placeholder {
 }
 
 .problem-title {
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .problem-meta-chips {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .meta-chip {
   font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 600;
-  padding: 2px 7px;
+  font-weight: 500;
+  padding: 2px 8px;
   border-radius: 4px;
   background: var(--bg-subtle);
   color: var(--text-secondary);
@@ -785,7 +653,7 @@ input::placeholder {
 .test-cases-section h3 {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-bottom: 14px;
   color: var(--text-tertiary);
@@ -805,7 +673,7 @@ input::placeholder {
   color: var(--text-tertiary);
   margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .tc-value {
@@ -820,22 +688,24 @@ input::placeholder {
   white-space: pre-wrap;
 }
 
-/* Right Panel: IDE & Terminal Console */
+/* Right Panel: Editor & Sandbox */
 .right-panel {
   width: 56%;
   display: flex;
   flex-direction: column;
   background: var(--bg-well);
+  height: 100%;
 }
 
 .editor-toolbar {
-  height: 44px;
+  height: 42px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
+  flex-shrink: 0;
 }
 
 .editor-container {
@@ -852,7 +722,7 @@ input::placeholder {
   color: var(--editor-text);
   font-family: var(--font-mono);
   font-size: 13.5px;
-  padding: 18px 20px;
+  padding: 16px 20px;
   border: none;
   resize: none;
   outline: none;
@@ -861,13 +731,14 @@ input::placeholder {
   user-select: text;
 }
 
-/* Tabbed Execution Sandbox */
+/* Tabbed Execution Console Drawer */
 .console-drawer {
-  height: 200px;
+  height: 210px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-hairline);
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .console-header {
@@ -878,13 +749,14 @@ input::placeholder {
   justify-content: space-between;
   align-items: center;
   padding: 0 14px;
+  flex-shrink: 0;
 }
 
 .console-title {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
 }
 
@@ -908,8 +780,8 @@ input::placeholder {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(4, 5, 8, 0.7);
-  backdrop-filter: blur(8px);
+  background: var(--modal-backdrop);
+  backdrop-filter: blur(6px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -919,10 +791,10 @@ input::placeholder {
 .modal-content {
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 32px 28px;
+  border-radius: 10px;
+  padding: 30px 26px;
   max-width: 440px;
-  width: 100%;
+  width: 90%;
   text-align: center;
   box-shadow: var(--card-shadow);
 }
@@ -936,7 +808,7 @@ input::placeholder {
 }
 
 /* --------------------------------------------------------------------------
-   10. Toasts, Warnings & Announcements
+   10. Toasts & Banners
    -------------------------------------------------------------------------- */
 .reconnect-toast {
   position: fixed;
@@ -944,18 +816,18 @@ input::placeholder {
   right: 24px;
   background: var(--bg-panel-elevated);
   border: 1px solid var(--status-emerald);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--card-shadow);
   border-radius: 8px;
-  padding: 14px 18px;
+  padding: 12px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   z-index: 2000;
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(14px);
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  max-width: 400px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  max-width: 380px;
 }
 
 .reconnect-toast.visible {
@@ -965,8 +837,8 @@ input::placeholder {
 }
 
 .reconnect-toast-icon {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: var(--status-emerald-bg);
   color: var(--status-emerald);
@@ -974,12 +846,12 @@ input::placeholder {
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
 .reconnect-toast-title {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
@@ -997,7 +869,7 @@ input::placeholder {
   left: 50%;
   transform: translateX(-50%);
   width: 90%;
-  max-width: 800px;
+  max-width: 760px;
   z-index: 1500;
   display: flex;
   flex-direction: column;
@@ -1010,42 +882,27 @@ input::placeholder {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 18px;
-  border-radius: 8px;
+  padding: 12px 16px;
+  border-radius: 6px;
   background: var(--bg-panel-elevated);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
-  animation: slideDownBanner 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  box-shadow: var(--card-shadow);
+  animation: slideDownBanner 0.25s ease forwards;
 }
 
 @keyframes slideDownBanner {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.broadcast-banner.info {
-  border-left: 4px solid var(--accent-cyan);
-}
-
-.broadcast-banner.warning {
-  border-left: 4px solid var(--status-amber);
-}
-
-.broadcast-banner.urgent {
-  border-left: 4px solid var(--status-rose);
-}
+.broadcast-banner.info { border-left: 3px solid var(--accent-blue); }
+.broadcast-banner.warning { border-left: 3px solid var(--status-amber); }
+.broadcast-banner.urgent { border-left: 3px solid var(--status-rose); }
 
 .broadcast-banner-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .broadcast-banner-badge {
@@ -1053,28 +910,26 @@ input::placeholder {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 7px;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
   border-radius: 4px;
 }
 
 .broadcast-banner.info .broadcast-banner-badge {
-  background: rgba(56, 189, 248, 0.15);
-  color: var(--accent-cyan);
+  background: var(--accent-blue-bg);
+  color: var(--accent-blue);
 }
-
 .broadcast-banner.warning .broadcast-banner-badge {
   background: var(--status-amber-bg);
   color: var(--status-amber);
 }
-
 .broadcast-banner.urgent .broadcast-banner-badge {
   background: var(--status-rose-bg);
   color: var(--status-rose);
 }
 
 .broadcast-banner-text {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-primary);
   line-height: 1.4;
   font-weight: 500;
@@ -1085,8 +940,8 @@ input::placeholder {
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 16px;
-  padding: 4px 8px;
+  font-size: 15px;
+  padding: 2px 6px;
   border-radius: 4px;
 }
 
@@ -1101,5 +956,5 @@ input::placeholder {
 
 @keyframes pulseGreen {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
 }

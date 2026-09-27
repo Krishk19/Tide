@@ -12,7 +12,7 @@ function createWindow() {
     frame: false,
     autoHideMenuBar: true,
     alwaysOnTop: true,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#09090b',
     webPreferences: {
       devTools: false, // Core Chromium embed block
       nodeIntegration: false,

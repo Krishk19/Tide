@@ -11,6 +11,7 @@ from app.api.exam import router as exam_router
 from app.api.telemetry import router as telemetry_router
 from app.api.classroom import router as classroom_router
 from app.api.dashboard import router as dashboard_router
+from app.api.similarity import router as similarity_router
 
 from sqlalchemy import text
 
@@ -80,6 +81,7 @@ app.include_router(sessions_router, prefix="/api")
 app.include_router(exam_router, prefix="/api")
 app.include_router(classroom_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
+app.include_router(similarity_router, prefix="/api")
 app.include_router(telemetry_router)
 
 # Mount Static UI Directories

@@ -64,6 +64,7 @@ const authSection = document.getElementById('authSection');
 const liveMonitorSection = document.getElementById('liveMonitorSection');
 const sessionsSection = document.getElementById('sessionsSection');
 const assignmentsSection = document.getElementById('assignmentsSection');
+const similaritySection = document.getElementById('similaritySection');
 
 const mainNav = document.getElementById('mainNav');
 const teacherProfile = document.getElementById('teacherProfile');
@@ -78,15 +79,16 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.add('active');
     const targetId = btn.dataset.view;
 
-    [liveMonitorSection, sessionsSection, assignmentsSection].forEach((sec) =>
-      sec.classList.remove('active')
-    );
+    [liveMonitorSection, sessionsSection, assignmentsSection, similaritySection].forEach((sec) => {
+      if (sec) sec.classList.remove('active');
+    });
     const targetSec = document.getElementById(targetId);
     if (targetSec) targetSec.classList.add('active');
 
     if (targetId === 'sessionsSection') loadSessions();
     if (targetId === 'assignmentsSection') loadAssignments();
     if (targetId === 'liveMonitorSection') refreshMonitorView();
+    if (targetId === 'similaritySection') initSimilarityView();
   });
 });
 
@@ -1126,6 +1128,185 @@ document.getElementById('closePlaybackModalBtn').addEventListener('click', () =>
 
 function escapeHtml(text) {
   return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ==========================================================================
+// AST Code Similarity & Plagiarism Studio
+// ==========================================================================
+function initSimilarityView() {
+  const select = document.getElementById('similaritySessionSelect');
+  if (!select) return;
+
+  select.innerHTML = '';
+  if (!state.sessions || state.sessions.length === 0) {
+    select.innerHTML = '<option value="">No sessions available</option>';
+    return;
+  }
+
+  state.sessions.forEach((s) => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = `${s.access_code} - ${s.assignment_title} (${s.status})`;
+    if (s.id === state.selectedSessionId) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  });
+
+  if (!state.selectedSessionId && state.sessions.length > 0) {
+    select.value = state.sessions[0].id;
+  }
+
+  loadSimilarityMatrix();
+}
+
+const runSimilarityScanBtn = document.getElementById('runSimilarityScanBtn');
+if (runSimilarityScanBtn) {
+  runSimilarityScanBtn.addEventListener('click', () => loadSimilarityMatrix());
+}
+
+const similaritySessionSelect = document.getElementById('similaritySessionSelect');
+if (similaritySessionSelect) {
+  similaritySessionSelect.addEventListener('change', () => loadSimilarityMatrix());
+}
+
+const similarityThresholdSelect = document.getElementById('similarityThresholdSelect');
+if (similarityThresholdSelect) {
+  similarityThresholdSelect.addEventListener('change', () => loadSimilarityMatrix());
+}
+
+async function loadSimilarityMatrix() {
+  const select = document.getElementById('similaritySessionSelect');
+  const threshSelect = document.getElementById('similarityThresholdSelect');
+  const tbody = document.getElementById('similarityTableBody');
+  if (!select || !select.value) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Please select a session first.</td></tr>';
+    return;
+  }
+
+  const sessionId = select.value;
+  const threshold = threshSelect ? threshSelect.value : 65;
+
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Computing AST representations and cross-student similarity matrix...</td></tr>';
+  }
+
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/similarity-matrix?threshold=${threshold}`, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+    if (!res.ok) throw new Error('Failed to compute similarity matrix');
+    const data = await res.json();
+
+    document.getElementById('simKpiStudents').innerText = data.total_students || 0;
+    document.getElementById('simKpiPairs').innerText = data.total_pairs_compared || 0;
+    document.getElementById('simKpiFlagged').innerText = data.flagged_pairs_count || 0;
+
+    if (!data.pairs || data.pairs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 36px 20px;">✓ No code similarity found exceeding ${threshold}% threshold across ${data.total_pairs_compared} student pair comparisons. Clean exam session.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = '';
+    data.pairs.forEach((pair, idx) => {
+      const tr = document.createElement('tr');
+      const score = pair.similarity_pct;
+      let badgeClass = 'low';
+      if (score >= 75) badgeClass = 'high';
+      else if (score >= 50) badgeClass = 'medium';
+
+      const tagsHtml = (pair.correlation_tags || []).map(t => {
+        const isAlert = t.includes('Paste') || t.includes('Cheat') || t.includes('Near-Identical');
+        return `<span class="correlation-tag ${isAlert ? 'alert' : ''}">${escapeHtml(t)}</span>`;
+      }).join('');
+
+      tr.innerHTML = `
+        <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary);">#${idx + 1}</td>
+        <td>
+          <strong>${escapeHtml(pair.student_a.name)}</strong>
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(pair.student_a.identifier)}</div>
+        </td>
+        <td>
+          <strong>${escapeHtml(pair.student_b.name)}</strong>
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">${escapeHtml(pair.student_b.identifier)}</div>
+        </td>
+        <td>
+          <span class="similarity-match-badge ${badgeClass}">${score}% Match</span>
+          <div style="font-size: 10px; font-family: var(--font-mono); color: var(--text-tertiary); margin-top: 2px;">${pair.shared_kgrams} shared k-grams</div>
+        </td>
+        <td style="font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;">${escapeHtml(pair.language)}</td>
+        <td>${tagsHtml || '<span style="color: var(--text-tertiary); font-size: 11px;">None</span>'}</td>
+        <td style="text-align: right;">
+          <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="openSimilarityDiffModal(${sessionId}, ${pair.student_a.id}, ${pair.student_b.id})">🔍 Compare Diff</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 24px;">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+window.openSimilarityDiffModal = async function(sessionId, stAId, stBId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/similarity-diff?student_a=${stAId}&student_b=${stBId}`, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+    if (!res.ok) throw new Error('Failed to load code diff');
+    const diff = await res.json();
+
+    document.getElementById('simDiffScoreBadge').innerText = `${diff.similarity_pct}% Structural Match`;
+    document.getElementById('simDiffStudentAName').innerText = diff.student_a.name;
+    document.getElementById('simDiffStudentARoll').innerText = `(${diff.student_a.identifier})`;
+    document.getElementById('simDiffStudentAMeta').innerText = `${diff.student_a.line_count} lines • ${diff.student_a.language}`;
+    document.getElementById('simDiffCodeA').innerText = diff.student_a.code || '// No code submitted';
+
+    document.getElementById('simDiffStudentBName').innerText = diff.student_b.name;
+    document.getElementById('simDiffStudentBRoll').innerText = `(${diff.student_b.identifier})`;
+    document.getElementById('simDiffStudentBMeta').innerText = `${diff.student_b.line_count} lines • ${diff.student_b.language}`;
+    document.getElementById('simDiffCodeB').innerText = diff.student_b.code || '// No code submitted';
+
+    // Tags
+    const tagsContainer = document.getElementById('simDiffCorrelationTags');
+    tagsContainer.innerHTML = '';
+    const tags = diff.correlation_tags || [];
+    if (diff.similarity_pct >= 90) tags.push('Near-Identical AST Structure');
+    tags.forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'correlation-tag alert';
+      span.innerText = t;
+      tagsContainer.appendChild(span);
+    });
+
+    // Unified diff
+    document.getElementById('simDiffUnifiedText').innerText = diff.diff_text || 'Exact identical code blocks or AST match.';
+
+    document.getElementById('similarityDiffModal').classList.add('active');
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+const closeSimDiffModalBtn = document.getElementById('closeSimilarityDiffModalBtn');
+if (closeSimDiffModalBtn) {
+  closeSimDiffModalBtn.addEventListener('click', () => {
+    document.getElementById('similarityDiffModal').classList.remove('active');
+  });
+}
+
+const simDiffUnifiedToggle = document.getElementById('simDiffUnifiedToggle');
+if (simDiffUnifiedToggle) {
+  simDiffUnifiedToggle.addEventListener('click', () => {
+    const body = document.getElementById('simDiffUnifiedBody');
+    const label = document.getElementById('simDiffToggleLabel');
+    if (body.style.display === 'none') {
+      body.style.display = 'block';
+      if (label) label.innerText = 'Hide Raw Diff ▴';
+    } else {
+      body.style.display = 'none';
+      if (label) label.innerText = 'Toggle Raw Diff ▾';
+    }
+  });
 }
 
 // Start
