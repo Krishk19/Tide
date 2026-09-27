@@ -6,7 +6,7 @@
   <title>Tide Secure Assessment Kiosk</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="theme-dark">
   <!-- Global Kiosk Header -->
   <header>
     <div class="logo-area">
@@ -16,17 +16,29 @@
     </div>
     <div class="header-controls">
       <div id="studentInfoBadge" style="display: none;"></div>
+      <div id="examTimerBadge" class="badge" style="display: none; font-family: var(--font-mono); font-size: 11px;">⏱️ <span id="examTimerText">--:--</span></div>
       <div class="autosave-indicator" id="autosaveIndicator" style="display: none;">
         <div class="pulse-dot"></div>
         <span id="autosaveText">Autosaved</span>
       </div>
-      <!-- Dual-Theme Switcher -->
-      <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Light / Dark Mode">
-        <span id="themeToggleText">☀ Light</span>
-      </button>
+      <!-- Prominent Segmented Dual-Theme Switcher -->
+      <div class="theme-switch-segmented" title="Switch between Light and Dark interface">
+        <button type="button" class="theme-opt-btn" id="themeLightBtn" data-theme-val="light">
+          <span>☀</span> Light
+        </button>
+        <button type="button" class="theme-opt-btn active" id="themeDarkBtn" data-theme-val="dark">
+          <span>☾</span> Dark
+        </button>
+      </div>
+      <!-- Hidden legacy button ID fallback for renderer.js -->
+      <button id="themeToggleBtn" style="display: none;"></button>
+      <span id="themeToggleText" style="display: none;"></span>
       <button class="btn-submit" id="headerSubmitBtn" style="display: none;">Submit Assessment</button>
     </div>
   </header>
+
+  <!-- Real-Time Floating Broadcast Announcement Banner -->
+  <div id="broadcastBannerContainer" class="broadcast-banner-container"></div>
 
   <!-- View 1: Dual-Zone Kiosk Stage -->
   <div class="view-container active" id="joinView">
@@ -89,12 +101,22 @@
             <p>Input the 6-character room access code projected by your proctor.</p>
           </div>
 
+          <!-- Tactile Segmented 6-Box Pin Code Display -->
           <div class="form-group code-slot-group">
             <label>Exam Access Code</label>
-            <div class="code-slot-wrapper">
-              <input type="text" class="code-input" id="accessCodeInput" maxlength="6" placeholder="TID942" autofocus />
+            <div class="pin-display-wrapper">
+              <div class="pin-display-container" id="pinDisplayContainer">
+                <div class="pin-slot focused" id="pinSlot0">-</div>
+                <div class="pin-slot" id="pinSlot1">-</div>
+                <div class="pin-slot" id="pinSlot2">-</div>
+                <span class="pin-divider">·</span>
+                <div class="pin-slot" id="pinSlot3">-</div>
+                <div class="pin-slot" id="pinSlot4">-</div>
+                <div class="pin-slot" id="pinSlot5">-</div>
+              </div>
+              <input type="text" class="code-input-hidden" id="accessCodeInput" maxlength="6" placeholder="" autofocus autocomplete="off" spellcheck="false" />
             </div>
-            <span class="input-hint">6-character alphanumeric room key</span>
+            <span class="input-hint" id="pinStatusHint">Click boxes and type the 6-character access key</span>
           </div>
 
           <div class="form-group">
@@ -269,6 +291,18 @@
         Window focus or fullscreen exit was detected and logged to instructor telemetry. You must re-enter fullscreen to continue.
       </p>
       <button class="btn-primary" id="resumeFullscreenBtn" style="padding: 12px 24px;">Resume Fullscreen</button>
+    </div>
+  </div>
+
+  <!-- Remote Instructor Warning Modal -->
+  <div class="modal-overlay" id="directWarningModal" style="background: rgba(10, 10, 15, 0.92); z-index: 9998;">
+    <div class="modal-content" style="border: 1px solid var(--status-amber); max-width: 480px;">
+      <div class="badge" style="background: rgba(245, 158, 11, 0.15); color: var(--status-amber); border-color: rgba(245, 158, 11, 0.3); margin-bottom: 16px; display: inline-block;">INSTRUCTOR NOTIFICATION</div>
+      <h2 style="color: var(--status-amber);">Official Proctor Warning</h2>
+      <p id="directWarningMessageText" style="color: var(--text-primary); font-size: 14px; line-height: 1.6; margin: 16px 0 24px; padding: 14px; background: rgba(245, 158, 11, 0.08); border-radius: 6px; border-left: 3px solid var(--status-amber); text-align: left;">
+        Warning from instructor...
+      </p>
+      <button class="btn-primary" id="ackWarningBtn" style="padding: 10px 24px; width: 100%;">I Understand & Acknowledge</button>
     </div>
   </div>
 

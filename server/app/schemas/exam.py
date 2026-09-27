@@ -12,6 +12,7 @@ class ExamStateResponse(BaseModel):
     saved_code: Optional[str] = None
     saved_language: Optional[str] = None
     is_submitted: bool = False
+    extra_time_seconds: int = 0
 
 class CodeRunRequest(BaseModel):
     student_session_id: int

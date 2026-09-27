@@ -9,6 +9,7 @@ from app.api.assignments import router as assignments_router
 from app.api.sessions import router as sessions_router
 from app.api.exam import router as exam_router
 from app.api.telemetry import router as telemetry_router
+from app.api.classroom import router as classroom_router
 
 from sqlalchemy import text
 
@@ -30,6 +31,11 @@ def upgrade_schema():
             pass
         try:
             conn.execute(text("ALTER TABLE flags ADD COLUMN notes TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE students_in_session ADD COLUMN extra_time_seconds INTEGER DEFAULT 0"))
             conn.commit()
         except Exception:
             pass
@@ -56,6 +62,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
 app.include_router(exam_router, prefix="/api")
+app.include_router(classroom_router, prefix="/api")
 app.include_router(telemetry_router)
 
 # Mount Static UI Directories

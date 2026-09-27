@@ -53,6 +53,21 @@ class ConnectionManager:
         for ws in dead_sockets:
             self.disconnect_teacher(teacher_id, ws)
 
+    async def send_to_student(self, student_session_id: int, message: dict[str, Any]):
+        sockets = self.student_sockets.get(student_session_id, [])
+        dead_sockets = []
+        for ws in sockets:
+            try:
+                await ws.send_text(json.dumps(message, default=str))
+            except Exception:
+                dead_sockets.append(ws)
+        for ws in dead_sockets:
+            self.disconnect_student(student_session_id, ws)
+
+    async def broadcast_to_students(self, student_session_ids: list[int], message: dict[str, Any]):
+        for sid in student_session_ids:
+            await self.send_to_student(sid, message)
+
 manager = ConnectionManager()
 
 def record_flag_in_db(

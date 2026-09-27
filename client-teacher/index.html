@@ -92,6 +92,7 @@
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 11px; padding: 6px 10px;">Audio Alert: ON</button>
+          <button class="btn btn-secondary" id="broadcastModalBtn" style="font-size: 11px; padding: 6px 12px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">📢 Broadcast Notice</button>
           <button class="btn btn-secondary" id="projectCodeBtn" style="font-size: 11px; padding: 6px 12px;">Project Access Code</button>
           <button class="btn btn-primary" id="refreshMonitorBtn" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
         </div>
@@ -114,11 +115,12 @@
                 <th>Autosaved</th>
                 <th>Status</th>
                 <th>Flags</th>
+                <th>Control</th>
               </tr>
             </thead>
             <tbody id="studentRosterTbody">
               <tr>
-                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No active session selected.</td>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active session selected.</td>
               </tr>
             </tbody>
           </table>
@@ -269,6 +271,55 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
         <button class="btn btn-secondary" id="closeAssignModalBtn">Cancel</button>
         <button class="btn btn-primary" id="saveAssignmentConfirmBtn">Save Assignment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Broadcast Announcement -->
+  <div class="modal" id="broadcastModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; margin-bottom: 12px;">CLASSROOM CONTROL</span>
+      <h3>Broadcast Announcement</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 18px;">Pushes a real-time banner to all student terminals in this session without disturbing editor focus.</p>
+
+      <div class="form-group">
+        <label>Announcement Type</label>
+        <select id="broadcastTypeSelect" style="width: 100%; padding: 8px 10px; font-size: 12px;">
+          <option value="info">Information (Blue)</option>
+          <option value="warning">Important Notice (Amber)</option>
+          <option value="urgent">Urgent Security Alert (Red)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Notice Content</label>
+        <textarea id="broadcastMessageTextarea" rows="3" placeholder="e.g. Notice: In Question 2, assume all input numbers are positive integers."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-secondary" id="closeBroadcastModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="sendBroadcastConfirmBtn">📢 Send to All Kiosks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Send Direct Warning -->
+  <div class="modal" id="warnStudentModal">
+    <div class="modal-box" style="max-width: 500px;">
+      <span class="badge" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b; margin-bottom: 12px;">PROCTOR INTERVENTION</span>
+      <h3 id="warnModalTitle">Send Warning to Student</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 18px;">Displays an official warning modal directly on the student terminal and logs an audit flag.</p>
+
+      <input type="hidden" id="warnTargetStudentId" value="" />
+
+      <div class="form-group">
+        <label>Warning Directive</label>
+        <textarea id="warnMessageInput" rows="3" placeholder="Warning from Instructor: Maintain exam focus on your screen. Suspicious movement has been logged."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button class="btn btn-secondary" id="closeWarnModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="sendWarnConfirmBtn" style="background: var(--warning); color: #000;">⚠️ Issue Official Warning</button>
       </div>
     </div>
   </div>

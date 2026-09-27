@@ -18,6 +18,7 @@ class StudentInSessionItem(BaseModel):
     submitted_at: Optional[datetime] = None
     flag_count: int = 0
     risk_score: int = 0
+    extra_time_seconds: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

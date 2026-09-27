@@ -61,7 +61,8 @@ def get_exam_state(student_session_id: int, db: Session = Depends(get_db)):
             assignment=None,
             saved_code=None,
             saved_language=None,
-            is_submitted=False
+            is_submitted=False,
+            extra_time_seconds=student.extra_time_seconds or 0
         )
 
     # UNLOCKED: Auto-transition session to active if scheduled
@@ -94,7 +95,8 @@ def get_exam_state(student_session_id: int, db: Session = Depends(get_db)):
         assignment=student_assignment,
         saved_code=sub.code if sub else assignment.starter_code,
         saved_language=sub.language if sub else "python",
-        is_submitted=is_submitted
+        is_submitted=is_submitted,
+        extra_time_seconds=student.extra_time_seconds or 0
     )
 
 @router.post("/run", response_model=CodeRunResponse)

@@ -385,13 +385,28 @@ async function loadActiveSessionRoster(sessionId) {
       }
       const riskBadge = `<span class="risk-badge ${riskClass}">${riskLabel}</span>`;
 
+      const extraTimeBadge = st.extra_time_seconds > 0
+        ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34d399; font-size: 10px; margin-left: 4px;">+${Math.round(st.extra_time_seconds / 60)}m</span>`
+        : '';
+
+      const actionsHtml = st.submitted_at
+        ? `<span style="color: var(--text-tertiary); font-size: 11px; font-family: var(--font-mono);">Finalized</span>`
+        : `
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
+            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
+            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
+          </div>
+        `;
+
       tr.innerHTML = `
         <td><strong>${escapeHtml(st.student_name)}</strong></td>
         <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">${escapeHtml(st.student_identifier)}</td>
         <td>${riskBadge}</td>
         <td style="font-size: 12px; font-family: var(--font-mono); color: var(--text-muted);">${autosaveTime}</td>
-        <td>${statusBadge}</td>
+        <td>${statusBadge}${extraTimeBadge}</td>
         <td>${flagBadge}</td>
+        <td>${actionsHtml}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -675,6 +690,131 @@ document.getElementById('saveAssignmentConfirmBtn').addEventListener('click', as
 });
 
 document.getElementById('refreshMonitorBtn').addEventListener('click', refreshMonitorView);
+
+// Remote Classroom Controls
+window.extendStudentTime = async function(studentId, minutes = 5) {
+  if (!state.selectedSessionId || !state.token) return;
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/extend-time`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({ added_minutes: minutes, reason: 'Compensatory time granted by instructor' }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to extend time');
+    }
+    loadActiveSessionRoster(state.selectedSessionId);
+  } catch (err) {
+    alert(`Error extending time: ${err.message}`);
+  }
+};
+
+window.openWarnModal = function(studentId, studentName) {
+  document.getElementById('warnTargetStudentId').value = studentId;
+  document.getElementById('warnModalTitle').innerText = `Send Warning to ${studentName}`;
+  document.getElementById('warnMessageInput').value = 'Warning from Instructor: Maintain exam focus on your screen. Suspicious movement has been logged.';
+  document.getElementById('warnStudentModal').classList.add('active');
+};
+
+document.getElementById('closeWarnModalBtn').addEventListener('click', () => {
+  document.getElementById('warnStudentModal').classList.remove('active');
+});
+
+document.getElementById('sendWarnConfirmBtn').addEventListener('click', async () => {
+  const studentId = document.getElementById('warnTargetStudentId').value;
+  const message = document.getElementById('warnMessageInput').value.trim();
+  if (!studentId || !message || !state.selectedSessionId) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/warn`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({ message: message }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to send warning');
+    }
+    document.getElementById('warnStudentModal').classList.remove('active');
+  } catch (err) {
+    alert(`Error sending warning: ${err.message}`);
+  }
+});
+
+window.forceSubmitStudent = async function(studentId, studentName) {
+  if (!confirm(`Are you sure you want to remotely freeze and finalize submission for ${studentName}?\nThis action cannot be undone.`)) {
+    return;
+  }
+  if (!state.selectedSessionId || !state.token) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/force-submit`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${state.token}`,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to force submit');
+    }
+    loadActiveSessionRoster(state.selectedSessionId);
+  } catch (err) {
+    alert(`Error force submitting: ${err.message}`);
+  }
+};
+
+// Modals: Broadcast Announcement
+const broadcastModal = document.getElementById('broadcastModal');
+document.getElementById('broadcastModalBtn').addEventListener('click', () => {
+  if (!state.selectedSessionId) {
+    alert('Please select an active session first.');
+    return;
+  }
+  broadcastModal.classList.add('active');
+});
+document.getElementById('closeBroadcastModalBtn').addEventListener('click', () => {
+  broadcastModal.classList.remove('active');
+});
+
+document.getElementById('sendBroadcastConfirmBtn').addEventListener('click', async () => {
+  if (!state.selectedSessionId || !state.token) return;
+  const msg = document.getElementById('broadcastMessageTextarea').value.trim();
+  const type = document.getElementById('broadcastTypeSelect').value;
+
+  if (!msg) {
+    alert('Please write an announcement notice.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/broadcast`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({ message: msg, type: type }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to broadcast announcement');
+    }
+    const data = await res.json();
+    broadcastModal.classList.remove('active');
+    document.getElementById('broadcastMessageTextarea').value = '';
+    alert(`Announcement broadcast to ${data.recipient_count} student terminals.`);
+  } catch (err) {
+    alert(`Broadcast error: ${err.message}`);
+  }
+});
 
 function escapeHtml(text) {
   return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

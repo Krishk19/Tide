@@ -165,6 +165,22 @@ function connectTelemetryWebSocket() {
   try {
     state.ws = new WebSocket(wsUrl);
     state.ws.onopen = () => console.log('Telemetry WebSocket connected.');
+    state.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.event === 'broadcast_announcement') {
+          showBroadcastBanner(data);
+        } else if (data.event === 'extend_time') {
+          handleExtendTime(data);
+        } else if (data.event === 'direct_warning') {
+          showDirectWarning(data);
+        } else if (data.event === 'force_submit') {
+          showSubmittedScreen(data.result);
+        }
+      } catch (e) {
+        console.error('Failed to parse incoming WebSocket message', e);
+      }
+    };
     state.ws.onclose = () => console.log('Telemetry WebSocket closed.');
     state.ws.onerror = (e) => console.log('Telemetry WebSocket error:', e);
   } catch (err) {
@@ -354,6 +370,90 @@ function showReconnectNotification(downtimeSeconds) {
   setTimeout(() => {
     toast.classList.remove('visible');
   }, 6000);
+}
+
+// Classroom Remote Broadcast Banner
+function showBroadcastBanner(data) {
+  const container = document.getElementById('broadcastBannerContainer');
+  if (!container) return;
+
+  const banner = document.createElement('div');
+  const type = data.type || 'info';
+  banner.className = `broadcast-banner ${type}`;
+
+  const icon = type === 'urgent' ? '🚨' : type === 'warning' ? '⚠️' : '📢';
+  const label = type === 'urgent' ? 'URGENT NOTICE' : type === 'warning' ? 'IMPORTANT' : 'ANNOUNCEMENT';
+
+  banner.innerHTML = `
+    <div class="broadcast-banner-left">
+      <span class="broadcast-banner-badge">${icon} ${label}</span>
+      <span class="broadcast-banner-text">${escapeHtml(data.message)}</span>
+    </div>
+    <button class="broadcast-banner-close" title="Dismiss">✕</button>
+  `;
+
+  const closeBtn = banner.querySelector('.broadcast-banner-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      banner.style.opacity = '0';
+      banner.style.transform = 'translateY(-20px)';
+      setTimeout(() => banner.remove(), 250);
+    });
+  }
+
+  container.appendChild(banner);
+
+  // Auto-dismiss after 15 seconds
+  setTimeout(() => {
+    if (banner.parentNode) {
+      banner.style.opacity = '0';
+      banner.style.transform = 'translateY(-20px)';
+      setTimeout(() => banner.remove(), 250);
+    }
+  }, 15000);
+}
+
+// Classroom Remote Extra Time Handler
+function handleExtendTime(data) {
+  const timerBadge = document.getElementById('examTimerBadge');
+  if (timerBadge) {
+    timerBadge.classList.add('time-pulse');
+    setTimeout(() => timerBadge.classList.remove('time-pulse'), 5000);
+  }
+
+  let toast = document.getElementById('reconnectToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'reconnectToast';
+    toast.className = 'reconnect-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `
+    <div class="reconnect-toast-icon">⏰</div>
+    <div class="reconnect-toast-content">
+      <div class="reconnect-toast-title">+${data.added_minutes} Minutes Added</div>
+      <div class="reconnect-toast-desc">${escapeHtml(data.reason || 'Compensatory time granted by instructor.')}</div>
+    </div>
+  `;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 7000);
+}
+
+// Classroom Direct Warning Modal
+function showDirectWarning(data) {
+  const modal = document.getElementById('directWarningModal');
+  const msgEl = document.getElementById('directWarningMessageText');
+  const ackBtn = document.getElementById('ackWarningBtn');
+  if (!modal || !msgEl) return;
+
+  msgEl.innerText = data.message || 'Please maintain exam integrity and stay focused on your terminal.';
+  modal.style.display = 'flex';
+
+  if (ackBtn) {
+    ackBtn.onclick = () => {
+      modal.style.display = 'none';
+    };
+  }
 }
 
 // Check State and Start-Gate
