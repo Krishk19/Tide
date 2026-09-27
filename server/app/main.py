@@ -5,6 +5,7 @@ from app.core.database import engine, Base
 from app.api.auth import router as auth_router
 from app.api.assignments import router as assignments_router
 from app.api.sessions import router as sessions_router
+from app.api.exam import router as exam_router
 
 # Create SQLite tables on startup
 Base.metadata.create_all(bind=engine)
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
+app.include_router(exam_router, prefix="/api")
 
 @app.get("/")
 def read_root():

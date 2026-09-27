@@ -4,8 +4,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_teacher
-from app.models.entities import Teacher, Assignment, Session as ExamSession, StudentInSession, Submission, Flag
-from app.schemas.session import SessionCreate, SessionStatusUpdate, SessionTeacherResponse, StudentInSessionItem
+from app.models.entities import (
+    Teacher,
+    Assignment,
+    Session as ExamSession,
+    StudentInSession,
+    Submission,
+    Flag,
+)
+from app.schemas.session import (
+    SessionCreate,
+    SessionStatusUpdate,
+    SessionTeacherResponse,
+    StudentInSessionItem,
+    StudentJoinRequest,
+    StudentJoinResponse,
+)
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -158,3 +172,61 @@ def update_session_status(
     db.commit()
     db.refresh(session)
     return get_session(session_id, current_teacher, db)
+
+@router.post("/join", response_model=StudentJoinResponse)
+def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
+    """
+    Student joins an exam session using a 6-character access code.
+    If the student already joined previously with the same identifier,
+    resumes their session and preserves their existing student_session_id.
+    """
+    clean_code = req.access_code.strip().upper()
+    session = db.query(ExamSession).filter(
+        ExamSession.access_code == clean_code,
+        ExamSession.status.in_(["scheduled", "active"])
+    ).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid or expired access code"
+        )
+
+    # Check for existing student in session (reconnect support)
+    student = db.query(StudentInSession).filter(
+        StudentInSession.session_id == session.id,
+        StudentInSession.student_identifier == req.student_identifier.strip()
+    ).first()
+
+    if not student:
+        student = StudentInSession(
+            session_id=session.id,
+            student_name=req.student_name.strip(),
+            student_identifier=req.student_identifier.strip()
+        )
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+
+        # Initialize starter submission record
+        assignment = session.assignment
+        default_lang = "python"
+        if assignment and assignment.language_set:
+            langs = [l.strip().lower() for l in assignment.language_set.split(",")]
+            if langs:
+                default_lang = langs[0]
+
+        sub = Submission(
+            student_session_id=student.id,
+            code=assignment.starter_code if assignment else "",
+            language=default_lang,
+            test_results=None
+        )
+        db.add(sub)
+        db.commit()
+
+    return {
+        "student_session_id": student.id,
+        "session_id": session.id,
+        "student_name": student.student_name,
+        "student_identifier": student.student_identifier
+    }

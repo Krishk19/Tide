@@ -1,49 +1,12 @@
-import os
 import pytest
 from datetime import datetime, timedelta, timezone
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-# Use a test database
-os.environ["DATABASE_URL"] = "sqlite:///./test_tide.db"
-
-from app.core.database import Base, get_db
-from app.main import app
-
-# Setup test DB
-test_engine = create_engine("sqlite:///./test_tide.db", connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_test_db():
-    Base.metadata.drop_all(bind=test_engine)
-    Base.metadata.create_all(bind=test_engine)
-    yield
-    Base.metadata.drop_all(bind=test_engine)
-    if os.path.exists("./test_tide.db"):
-        try:
-            os.remove("./test_tide.db")
-        except Exception:
-            pass
-
-client = TestClient(app)
-
-def test_health_check():
+def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
-def test_teacher_register_and_login():
+def test_teacher_register_and_login(client):
     # 1. Register Teacher A
     reg_payload = {
         "username": "prof_sharma",
@@ -77,7 +40,7 @@ def test_teacher_register_and_login():
     assert me_res.status_code == 200
     assert me_res.json()["username"] == "prof_sharma"
 
-def test_assignment_crud_and_multi_teacher_isolation():
+def test_assignment_crud_and_multi_teacher_isolation(client):
     # Login Teacher A
     token_a = client.post("/api/auth/login", json={"username": "prof_sharma", "password": "securepassword123"}).json()["access_token"]
     headers_a = {"Authorization": f"Bearer {token_a}"}
@@ -126,7 +89,7 @@ def test_assignment_crud_and_multi_teacher_isolation():
     del_unauth = client.delete(f"/api/assignments/{assign_a_id}", headers=headers_b)
     assert del_unauth.status_code == 404
 
-def test_session_creation_and_scoping():
+def test_session_creation_and_scoping(client):
     token_a = client.post("/api/auth/login", json={"username": "prof_sharma", "password": "securepassword123"}).json()["access_token"]
     headers_a = {"Authorization": f"Bearer {token_a}"}
 
