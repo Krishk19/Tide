@@ -118,3 +118,20 @@ app.on('window-all-closed', () => {
 ipcMain.handle('app-exit', () => {
   app.quit();
 });
+
+// IPC Handler to check fullscreen status
+ipcMain.handle('is-fullscreen', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  return mainWindow.isFullScreen() || mainWindow.isKiosk();
+});
+
+// IPC Handler to enforce fullscreen
+ipcMain.handle('set-fullscreen', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setFullScreen(true);
+    mainWindow.setKiosk(true);
+    return true;
+  }
+  return false;
+});
+

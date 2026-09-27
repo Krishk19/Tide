@@ -159,6 +159,30 @@
     </div>
   </div>
 
+  <!-- Fullscreen Required Gate Modal -->
+  <div class="modal-overlay" id="fullscreenGateModal">
+    <div class="modal-content">
+      <div style="font-size: 40px; margin-bottom: 10px;">🔒</div>
+      <h2>Fullscreen Required</h2>
+      <p style="color: var(--text-muted); font-size: 14px; margin: 12px 0 20px;">
+        To ensure assessment integrity, Tide strictly requires the screen to be in locked fullscreen mode before the exam can begin.
+      </p>
+      <button class="btn-primary" id="enableFullscreenBtn" style="padding: 12px 24px;">Enter Fullscreen & Begin</button>
+    </div>
+  </div>
+
+  <!-- Fullscreen Exit Lockout Overlay -->
+  <div class="modal-overlay" id="fullscreenLockoutOverlay" style="background: rgba(15, 23, 42, 0.95); z-index: 9999;">
+    <div class="modal-content" style="border: 2px solid var(--danger);">
+      <div style="font-size: 44px; margin-bottom: 10px;">⚠️</div>
+      <h2 style="color: var(--danger);">Exam Paused: Fullscreen Exited</h2>
+      <p style="color: #cbd5e1; font-size: 14px; margin: 12px 0 20px;">
+        A fullscreen exit was detected and logged to your instructor. You must return to fullscreen mode to resume your assessment.
+      </p>
+      <button class="btn-primary" id="resumeFullscreenBtn" style="background: #dc2626; padding: 12px 24px;">Re-enter Fullscreen & Resume</button>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>

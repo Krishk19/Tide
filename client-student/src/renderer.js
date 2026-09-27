@@ -12,6 +12,53 @@ let state = {
   currentLanguage: 'python',
 };
 
+// Internal Clipboard Tracker:
+// Allows copying/pasting within the exam window without generating flags!
+const internalClipboard = new Set();
+
+document.addEventListener('copy', () => {
+  const selectedText = window.getSelection().toString();
+  if (selectedText && selectedText.trim()) {
+    internalClipboard.add(selectedText.trim());
+    console.log('[Internal Clipboard] Text copied inside exam window:', selectedText.substring(0, 30));
+  }
+});
+
+document.addEventListener('cut', () => {
+  const selectedText = window.getSelection().toString();
+  if (selectedText && selectedText.trim()) {
+    internalClipboard.add(selectedText.trim());
+    console.log('[Internal Clipboard] Text cut inside exam window:', selectedText.substring(0, 30));
+  }
+});
+
+// Fullscreen Detection & Enforcement Utilities
+async function checkIsFullScreen() {
+  if (window.electronAPI && window.electronAPI.isFullScreen) {
+    return await window.electronAPI.isFullScreen();
+  }
+  const isDocFullscreen = document.fullscreenElement != null;
+  const isWindowMaximized = (window.innerHeight >= screen.height - 25 && window.innerWidth >= screen.width - 25);
+  return isDocFullscreen || isWindowMaximized;
+}
+
+async function enforceFullScreen() {
+  if (window.electronAPI && window.electronAPI.setFullScreen) {
+    await window.electronAPI.setFullScreen();
+    return true;
+  }
+  if (document.documentElement.requestFullscreen) {
+    try {
+      await document.documentElement.requestFullscreen();
+      return true;
+    } catch (e) {
+      console.warn('requestFullscreen request rejected:', e);
+      return false;
+    }
+  }
+  return false;
+}
+
 // DOM Elements
 const views = {
   join: document.getElementById('joinView'),
@@ -25,6 +72,12 @@ const studentInfoBadge = document.getElementById('studentInfoBadge');
 const autosaveIndicator = document.getElementById('autosaveIndicator');
 const autosaveText = document.getElementById('autosaveText');
 const headerSubmitBtn = document.getElementById('headerSubmitBtn');
+
+// Modals
+const fullscreenGateModal = document.getElementById('fullscreenGateModal');
+const enableFullscreenBtn = document.getElementById('enableFullscreenBtn');
+const fullscreenLockoutOverlay = document.getElementById('fullscreenLockoutOverlay');
+const resumeFullscreenBtn = document.getElementById('resumeFullscreenBtn');
 
 // View Switching
 function switchView(viewName) {
@@ -70,11 +123,24 @@ function connectTelemetryWebSocket() {
   }
 }
 
+// Handle Fullscreen Exit Lockout (Pause screen until resumed)
+function handleFullscreenExit() {
+  const isExamActive = views.exam.classList.contains('active') || views.countdown.classList.contains('active');
+  if (state.studentSessionId && isExamActive) {
+    sendTelemetry('fullscreen-exit', { source: 'window-exit' });
+    if (fullscreenLockoutOverlay) {
+      fullscreenLockoutOverlay.style.display = 'flex';
+    }
+  }
+}
+
 // Electron Main Process IPC Telemetry Hook
 if (window.electronAPI && window.electronAPI.onKioskEvent) {
   window.electronAPI.onKioskEvent((event) => {
     console.log('Kiosk Security Event:', event);
-    if (state.studentSessionId) {
+    if (event.type === 'fullscreen-exit') {
+      handleFullscreenExit();
+    } else if (state.studentSessionId) {
       sendTelemetry(event.type, { source: 'electron-main' });
     }
   });
@@ -103,8 +169,33 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) {
       console.log('[Browser Telemetry] fullscreen-exit');
-      if (state.studentSessionId) sendTelemetry('fullscreen-exit', { source: 'browser-esc' });
+      handleFullscreenExit();
     }
+  });
+}
+
+// Resume Fullscreen Button Handler
+if (resumeFullscreenBtn) {
+  resumeFullscreenBtn.addEventListener('click', async () => {
+    await enforceFullScreen();
+    if (fullscreenLockoutOverlay) {
+      fullscreenLockoutOverlay.style.display = 'none';
+    }
+    if (state.studentSessionId) {
+      sendTelemetry('focus-regained', { source: 'fullscreen-restored' });
+    }
+  });
+}
+
+// Fullscreen Gate Modal Button Handler
+if (enableFullscreenBtn) {
+  enableFullscreenBtn.addEventListener('click', async () => {
+    await enforceFullScreen();
+    if (fullscreenGateModal) {
+      fullscreenGateModal.style.display = 'none';
+    }
+    // Proceed to join
+    executeJoinFlow();
   });
 }
 
@@ -113,6 +204,18 @@ const joinBtn = document.getElementById('joinBtn');
 const joinError = document.getElementById('joinError');
 
 joinBtn.addEventListener('click', async () => {
+  // REQUIREMENT: KIOSK MUST NOT START THE EXAM IF SCREEN IS NOT FULLSCREEN!
+  const isFs = await checkIsFullScreen();
+  if (!isFs) {
+    if (fullscreenGateModal) {
+      fullscreenGateModal.style.display = 'flex';
+    }
+    return;
+  }
+  executeJoinFlow();
+});
+
+async function executeJoinFlow() {
   joinError.style.display = 'none';
   state.serverUrl = document.getElementById('serverHostInput').value.trim().replace(/\/$/, '');
   state.accessCode = document.getElementById('accessCodeInput').value.trim().toUpperCase();
@@ -160,10 +263,11 @@ joinBtn.addEventListener('click', async () => {
   } catch (err) {
     joinError.innerText = err.message;
     joinError.style.display = 'block';
+  } finally {
     joinBtn.disabled = false;
     joinBtn.innerText = 'Enter Exam';
   }
-});
+}
 
 // Check State and Start-Gate
 async function checkExamState() {
@@ -260,17 +364,28 @@ function escapeHtml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Paste Interceptor (Anti-Cheat Telemetry)
+// REQUIREMENT: Paste from outside is flagged; internal copy-paste is ALLOWED!
 function handleEditorPaste(e) {
   const clipboardData = e.clipboardData || window.clipboardData;
   if (!clipboardData) return;
   const pastedData = clipboardData.getData('text');
-  const pasteLength = pastedData ? pastedData.length : 0;
+  if (!pastedData) return;
 
-  console.log(`[Telemetry] Paste detected: ${pasteLength} characters`);
+  const trimmed = pastedData.trim();
+
+  // Check if content was copied from within the exam window
+  if (internalClipboard.has(trimmed)) {
+    console.log(`[Paste Allowed] Internal copy-paste from exam window (${pastedData.length} chars) - No flag generated.`);
+    return; // Allowed without penalty!
+  }
+
+  // If not copied internally, it came from an external window/source -> FLAG IT!
+  const pasteLength = pastedData.length;
+  console.log(`[Paste Flagged] External paste detected: ${pasteLength} characters`);
   sendTelemetry('paste', {
     length: pasteLength,
-    sample: pastedData ? pastedData.substring(0, 50) : '',
+    sample: pastedData.substring(0, 50),
+    source: 'external-source',
   });
 }
 

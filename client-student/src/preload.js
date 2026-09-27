@@ -6,4 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('kiosk-event', (_event, value) => callback(value));
   },
   exitApp: () => ipcRenderer.invoke('app-exit'),
+  isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
+  setFullScreen: () => ipcRenderer.invoke('set-fullscreen'),
 });
