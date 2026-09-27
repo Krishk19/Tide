@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -12,8 +12,9 @@ function createWindow() {
     frame: false,
     autoHideMenuBar: true,
     alwaysOnTop: true,
+    backgroundColor: '#0f172a',
     webPreferences: {
-      devTools: false, // Critical Chromium embed-level block
+      devTools: false, // Core Chromium embed block
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
@@ -22,12 +23,17 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  // Disable right-click context menu (prevents Inspect Element)
+  // Disable right-click context menu
   mainWindow.webContents.on('context-menu', (e) => {
     e.preventDefault();
   });
 
-  // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+R, etc.
+  // Block new window creation
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
+  // Shortcut blocking (F12, Ctrl+Shift+I/J/C, F5, Ctrl+R)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isDevToolsKey =
       input.key === 'F12' ||
@@ -40,33 +46,40 @@ function createWindow() {
     }
   });
 
-  // Re-force fullscreen if leave-full-screen fires (detection & mitigation)
+  // Telemetry: Fullscreen Exit Attempt
   mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send('telemetry-event', {
-      type: 'fullscreen-exit',
-      ts: new Date().toISOString(),
-    });
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.setFullScreen(true);
-      }
-    }, 100);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('kiosk-event', {
+        type: 'fullscreen-exit',
+        ts: new Date().toISOString(),
+      });
+      // Re-force fullscreen after detection
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setFullScreen(true);
+        }
+      }, 100);
+    }
   });
 
-  // Window blur (focus lost)
+  // Telemetry: Window Blur (Focus Lost / Alt-Tab)
   mainWindow.on('blur', () => {
-    mainWindow.webContents.send('telemetry-event', {
-      type: 'focus-lost',
-      ts: new Date().toISOString(),
-    });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('kiosk-event', {
+        type: 'focus-lost',
+        ts: new Date().toISOString(),
+      });
+    }
   });
 
-  // Window focus (focus regained)
+  // Telemetry: Window Focus (Focus Regained)
   mainWindow.on('focus', () => {
-    mainWindow.webContents.send('telemetry-event', {
-      type: 'focus-regained',
-      ts: new Date().toISOString(),
-    });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('kiosk-event', {
+        type: 'focus-regained',
+        ts: new Date().toISOString(),
+      });
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -74,16 +87,34 @@ function createWindow() {
   });
 }
 
+// Emergency Developer / Teacher Exit Shortcut: Ctrl+Alt+Shift+Q
 app.whenReady().then(() => {
   createWindow();
+
+  globalShortcut.register('CommandOrControl+Alt+Shift+Q', () => {
+    if (mainWindow) {
+      mainWindow.setKiosk(false);
+      mainWindow.setFullScreen(false);
+      app.quit();
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// IPC Handler to exit when test is submitted
+ipcMain.handle('app-exit', () => {
+  app.quit();
 });

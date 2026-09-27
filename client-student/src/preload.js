@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  onTelemetryEvent: (callback) => ipcRenderer.on('telemetry-event', (_event, value) => callback(value)),
+  isElectron: true,
+  onKioskEvent: (callback) => {
+    ipcRenderer.on('kiosk-event', (_event, value) => callback(value));
+  },
+  exitApp: () => ipcRenderer.invoke('app-exit'),
 });

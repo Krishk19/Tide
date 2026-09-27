@@ -4,110 +4,161 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tide Exam Kiosk</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      user-select: none;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #0f172a;
-      color: #f8fafc;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-    header {
-      padding: 12px 24px;
-      background: #1e293b;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #334155;
-    }
-    .badge {
-      background: #0284c7;
-      color: white;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    main {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-    }
-    .card {
-      background: #1e293b;
-      padding: 32px;
-      border-radius: 8px;
-      border: 1px solid #334155;
-      max-width: 440px;
-      width: 100%;
-      text-align: center;
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      margin: 12px 0;
-      border-radius: 6px;
-      border: 1px solid #475569;
-      background: #0f172a;
-      color: white;
-      font-size: 16px;
-      text-align: center;
-      letter-spacing: 2px;
-    }
-    input:focus {
-      outline: none;
-      border-color: #38bdf8;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 8px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #1d4ed8;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Global Kiosk Header -->
   <header>
-    <div style="font-weight: 700; font-size: 18px;">🌊 Tide Exam Kiosk</div>
-    <div class="badge">SECURE LAB ENVIRONMENT</div>
-  </header>
-  <main>
-    <div class="card">
-      <h2 style="margin-top: 0;">Join Assessment</h2>
-      <p style="color: #94a3b8; font-size: 14px;">Enter the 6-character access code provided by your instructor.</p>
-      <input type="text" id="accessCode" placeholder="ACCESS CODE" maxlength="6" autofocus />
-      <input type="text" id="studentName" placeholder="Your Full Name" />
-      <input type="text" id="studentId" placeholder="Roll Number / Student ID" />
-      <button id="joinBtn">Enter Exam</button>
+    <div class="logo-area">
+      <div class="logo-title">🌊 Tide Kiosk</div>
+      <div class="badge" id="sessionBadge">DISCONNECTED</div>
     </div>
-  </main>
+    <div style="display: flex; align-items: center; gap: 20px;">
+      <div id="studentInfoBadge" style="font-size: 13px; color: #94a3b8; display: none;"></div>
+      <div class="autosave-indicator" id="autosaveIndicator" style="display: none;">
+        <div class="pulse-dot"></div>
+        <span id="autosaveText">Autosaved</span>
+      </div>
+      <button class="btn-success" id="headerSubmitBtn" style="display: none;">Submit Exam</button>
+    </div>
+  </header>
 
-  <script>
-    if (window.electronAPI) {
-      window.electronAPI.onTelemetryEvent((data) => {
-        console.log('Kiosk Telemetry:', data);
-        // Will stream to WebSocket hub
-      });
-    }
-  </script>
+  <!-- View 1: Join Assessment -->
+  <div class="view-container active" id="joinView">
+    <div class="center-card-view">
+      <div class="join-card">
+        <h1>Welcome to Tide</h1>
+        <p>Locked-down college lab assessment environment</p>
+        
+        <div class="form-group">
+          <label>Server Host Address</label>
+          <input type="text" id="serverHostInput" value="http://localhost:8000" placeholder="http://192.168.1.10:8000" />
+        </div>
+
+        <div class="form-group">
+          <label>6-Character Access Code</label>
+          <input type="text" class="code-input" id="accessCodeInput" maxlength="6" placeholder="TID942" autofocus />
+        </div>
+
+        <div class="form-group">
+          <label>Your Full Name</label>
+          <input type="text" id="studentNameInput" placeholder="Aarav Sharma" />
+        </div>
+
+        <div class="form-group">
+          <label>Roll Number / Student ID</label>
+          <input type="text" id="studentIdInput" placeholder="CS2026_042" />
+        </div>
+
+        <button class="btn-primary" id="joinBtn">Enter Exam</button>
+        <div id="joinError" style="color: var(--danger); font-size: 13px; margin-top: 12px; display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View 2: Locked Countdown Screen -->
+  <div class="view-container" id="countdownView">
+    <div class="center-card-view">
+      <div class="join-card">
+        <div class="badge" style="background: #047857; color: #a7f3d0; margin-bottom: 14px;">IDENTITY VERIFIED</div>
+        <h2 id="countdownStudentName">Aarav Sharma</h2>
+        <p style="margin-bottom: 12px;">Exam environment is locked until scheduled start time.</p>
+        
+        <div class="countdown-box">
+          <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">Starts In</div>
+          <div class="countdown-digits" id="countdownDigits">00:00:00</div>
+        </div>
+
+        <p style="font-size: 12px; color: #64748b;">Enforced by server master clock. The problem statement will automatically unlock once the time arrives.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- View 3: Active Exam Screen -->
+  <div class="view-container" id="examView">
+    <!-- Left: Problem Statement & Test Cases -->
+    <div class="left-panel">
+      <div class="problem-content">
+        <div class="problem-title" id="problemTitle">Problem Title</div>
+        <div class="problem-statement" id="problemStatement">Problem Statement description...</div>
+        
+        <div class="test-cases-section">
+          <h3>Sample Test Cases</h3>
+          <div id="visibleTestCasesContainer">
+            <!-- Test case cards generated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Code Editor & Execution Console -->
+    <div class="right-panel">
+      <div class="editor-toolbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <label style="font-size: 12px; color: var(--text-muted);">Language:</label>
+          <select id="languageSelect" style="width: auto; padding: 4px 10px; font-size: 13px;">
+            <option value="python">Python 3</option>
+            <option value="cpp">C++ (g++)</option>
+            <option value="java">Java (javac)</option>
+            <option value="sql">SQL (SQLite)</option>
+          </select>
+        </div>
+        <div class="action-bar">
+          <button class="btn-secondary" id="runTestsBtn">▶ Run Tests</button>
+        </div>
+      </div>
+
+      <div class="editor-container">
+        <!-- Monaco or fallback textarea -->
+        <textarea id="codeEditorTextarea" spellcheck="false" placeholder="# Write your solution here..."></textarea>
+      </div>
+
+      <div class="console-drawer">
+        <div class="console-header">
+          <span class="console-title">Execution Console</span>
+          <span id="consoleTimeBadge" style="font-size: 11px; color: var(--text-muted);">Ready</span>
+        </div>
+        <div class="console-body" id="consoleBody">
+          Click "▶ Run Tests" to execute your solution against visible test cases.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View 4: Completed / Submitted Screen -->
+  <div class="view-container" id="submittedView">
+    <div class="center-card-view">
+      <div class="join-card">
+        <div style="font-size: 48px; margin-bottom: 12px;">🎉</div>
+        <h1>Exam Submitted!</h1>
+        <p>Your solution has been graded against both visible and server-side hidden test cases.</p>
+        
+        <div class="countdown-box" style="margin: 16px 0;">
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Final Score</div>
+          <div style="font-size: 36px; font-weight: 800; color: #10b981;" id="finalScoreText">100%</div>
+          <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;" id="finalScoreDetails">Passed 5 of 5 total tests</div>
+        </div>
+
+        <p style="font-size: 12px; color: #64748b;">You may now notify your instructor.</p>
+        <button class="btn-secondary" id="exitKioskBtn" style="margin-top: 14px; width: 100%;">Exit Exam Kiosk</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit Confirmation Modal -->
+  <div class="modal-overlay" id="submitModal">
+    <div class="modal-content">
+      <h2>Submit Your Assessment?</h2>
+      <p style="color: var(--text-muted); font-size: 14px; margin: 12px 0 24px;">
+        Your code will be evaluated against visible and server-side hidden test cases. Once submitted, you cannot make further edits.
+      </p>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn-secondary" id="cancelSubmitBtn" style="flex: 1; padding: 10px;">Cancel</button>
+        <button class="btn-success" id="confirmSubmitBtn" style="flex: 1; padding: 10px;">Yes, Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
 </body>
 </html>
