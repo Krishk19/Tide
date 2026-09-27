@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tide Instructor Command Center</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Instructor Header -->
+  <header>
+    <div class="brand">
+      <h1>🌊 Tide Command Center</h1>
+      <span class="badge" style="background: #1e3a8a; color: #93c5fd;">INSTRUCTOR PORTAL</span>
+    </div>
+
+    <nav class="nav-links" id="mainNav" style="display: none;">
+      <button class="nav-btn active" data-view="liveMonitorSection">Live Monitor</button>
+      <button class="nav-btn" data-view="sessionsSection">Sessions</button>
+      <button class="nav-btn" data-view="assignmentsSection">Assignments</button>
+    </nav>
+
+    <div class="user-controls">
+      <div id="teacherProfile" style="display: none; font-size: 13px; color: var(--text-muted);">
+        Logged in as <strong id="teacherNameDisplay" style="color: var(--text);">Prof. Sharma</strong>
+      </div>
+      <button class="btn btn-secondary" id="logoutBtn" style="display: none; padding: 4px 10px; font-size: 12px;">Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- View 0: Authentication -->
+    <section class="view-section active" id="authSection">
+      <div style="max-width: 420px; margin: 40px auto;" class="card">
+        <h2 style="margin-bottom: 6px;">Instructor Login</h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Access your assessment sessions and live telemetry</p>
+        
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="loginUsername" value="prof_sharma" placeholder="Username" />
+        </div>
+        
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" value="securepassword123" placeholder="Password" />
+        </div>
+
+        <button class="btn btn-primary" id="loginBtn" style="width: 100%; justify-content: center;">Sign In</button>
+        <button class="btn btn-secondary" id="demoRegisterBtn" style="width: 100%; justify-content: center; margin-top: 10px;">Quick Register Demo Account</button>
+        <div id="authError" style="color: var(--danger); font-size: 13px; margin-top: 10px; display: none;"></div>
+      </div>
+    </section>
+
+    <!-- View 1: Live Proctoring Room -->
+    <section class="view-section" id="liveMonitorSection">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <h2 style="font-size: 20px;">Live Exam Proctoring Feed</h2>
+          <select id="activeSessionSelect" style="width: 240px; padding: 6px 10px; font-size: 13px;">
+            <option value="">Select a Session to Monitor</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary" id="projectCodeBtn">📽️ Project Access Code</button>
+          <button class="btn btn-primary" id="refreshMonitorBtn">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="grid-2" style="grid-template-columns: 1.2fr 0.8fr;">
+        <!-- Left Column: Active Students Roster -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="font-size: 16px;">Active Students in Room</h3>
+            <span class="badge" id="studentCountBadge" style="background: #1f2937;">0 CONNECTED</span>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Roll No</th>
+                <th>Autosaved</th>
+                <th>Status</th>
+                <th>Flags</th>
+              </tr>
+            </thead>
+            <tbody id="studentRosterTbody">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted);">No active session selected.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Right Column: Live Streaming Security Flags Feed -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3 style="font-size: 16px;">Live Behavioral Flag Stream</h3>
+              <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></div>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);" id="feedStatusText">Listening via WebSocket</span>
+          </div>
+
+          <div class="flag-feed" id="liveFlagFeed">
+            <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 30px;">
+              Awaiting telemetry signals from student kiosk sessions...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 2: Sessions Management -->
+    <section class="view-section" id="sessionsSection">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Assessment Sessions</h2>
+        <button class="btn btn-primary" id="openNewSessionModalBtn">+ Launch New Session</button>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Access Code</th>
+              <th>Assignment</th>
+              <th>Start Time</th>
+              <th>Status</th>
+              <th>Students</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- View 3: Assignment Studio -->
+    <section class="view-section" id="assignmentsSection">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Author Assignments</h2>
+        <button class="btn btn-primary" id="openNewAssignmentModalBtn">+ Create Assignment</button>
+      </div>
+
+      <div class="grid-3" id="assignmentsGrid">
+        <!-- Dynamically populated assignment cards -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Launch Session -->
+  <div class="modal" id="newSessionModal">
+    <div class="modal-box">
+      <h3>Schedule Assessment Session</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 6px 0 18px;">Pick an authored assignment and set the scheduled start time.</p>
+      
+      <div class="form-group">
+        <label>Select Assignment</label>
+        <select id="modalSessionAssignmentSelect"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Scheduled Start Time</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <button type="button" class="btn btn-secondary" id="presetStartNowBtn" style="font-size: 12px;">Start in 15 Seconds</button>
+          <button type="button" class="btn btn-secondary" id="presetStart2mBtn" style="font-size: 12px;">Start in 2 Minutes</button>
+        </div>
+        <input type="datetime-local" id="modalSessionStartTimeInput" />
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button class="btn btn-secondary" id="closeSessionModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="createSessionConfirmBtn">Generate Access Code</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Big Access Code Projector -->
+  <div class="modal" id="projectorModal">
+    <div class="modal-box" style="text-align: center; max-width: 500px;">
+      <span class="badge" style="background: #1e3a8a; color: #93c5fd; margin-bottom: 12px;">EXAM ACCESS CODE</span>
+      <h2 id="projectorAssignmentTitle" style="color: var(--text-muted); font-size: 16px;">Two Sum Problem</h2>
+      
+      <div class="code-display" id="projectorCodeDisplay">TID942</div>
+      
+      <p style="color: var(--text-muted); font-size: 14px;">Students should launch the Tide Kiosk app and enter this 6-character code.</p>
+      
+      <button class="btn btn-primary" id="closeProjectorBtn" style="margin-top: 20px; width: 100%; justify-content: center;">Close Projector View</button>
+    </div>
+  </div>
+
+  <!-- Modal: Create Assignment -->
+  <div class="modal" id="newAssignmentModal">
+    <div class="modal-box" style="max-width: 700px;">
+      <h3>Author New Coding Problem</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 16px;">Author days ahead. Visible tests run on student machine; hidden tests grade server-side.</p>
+      
+      <div class="form-group">
+        <label>Problem Title</label>
+        <input type="text" id="modalAssignTitle" placeholder="e.g. Reverse Linked List" />
+      </div>
+
+      <div class="form-group">
+        <label>Problem Statement</label>
+        <textarea id="modalAssignStatement" rows="4" placeholder="Describe the inputs, outputs, and constraints..."></textarea>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Languages Permitted</label>
+          <input type="text" id="modalAssignLangs" value="python,cpp,java" />
+        </div>
+        <div class="form-group">
+          <label>Starter Code (Optional)</label>
+          <textarea id="modalAssignStarter" rows="2" placeholder="def solution():\n    pass"></textarea>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label style="color: #60a5fa;">Visible Test Cases (Shown to student)</label>
+        <div class="grid-2">
+          <input type="text" id="modalVisInput" placeholder="Input (e.g. 5)" />
+          <input type="text" id="modalVisOutput" placeholder="Expected Output (e.g. 25)" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label style="color: #f87171;">Hidden Test Cases (Server-side only)</label>
+        <div class="grid-2">
+          <input type="text" id="modalHidInput" placeholder="Hidden Input (e.g. 100)" />
+          <input type="text" id="modalHidOutput" placeholder="Expected Output (e.g. 10000)" />
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button class="btn btn-secondary" id="closeAssignModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveAssignmentConfirmBtn">Save Assignment</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
