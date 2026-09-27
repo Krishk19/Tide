@@ -1,17 +1,26 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tide Instructor Command Center</title>
-  <link rel="stylesheet" href="styles.css?v=2.2">
+  <!-- Zero-latency theme initialization before initial paint -->
+  <script>
+    (function() {
+      try {
+        var theme = localStorage.getItem('tide_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css?v=3.0">
 </head>
 <body>
   <!-- Instructor Header -->
   <header>
     <div class="brand">
       <div class="brand-mark">T</div>
-      <h1>Tide <span>Command Center</span></h1>
+      <h1>Tide <span class="header-divider">/</span> <span>Command Center</span></h1>
       <span class="badge">Instructor</span>
     </div>
 
@@ -24,11 +33,25 @@
     <div class="user-controls">
       <!-- Prominent Segmented Dual-Theme Switcher -->
       <div class="theme-switch-segmented" title="Switch between Light and Dark interface">
-        <button type="button" class="theme-opt-btn" id="teacherThemeLightBtn" data-theme-val="light">
-          <span>☀</span> Light
+        <button type="button" class="theme-opt-btn" id="teacherThemeLightBtn" data-theme-val="light" aria-label="Light Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <span>Light</span>
         </button>
-        <button type="button" class="theme-opt-btn active" id="teacherThemeDarkBtn" data-theme-val="dark">
-          <span>☾</span> Dark
+        <button type="button" class="theme-opt-btn active" id="teacherThemeDarkBtn" data-theme-val="dark" aria-label="Dark Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <span>Dark</span>
         </button>
       </div>
       <!-- Hidden legacy button ID fallback for app.js -->
@@ -100,7 +123,7 @@
         </div>
         <div style="display: flex; gap: 8px; align-items: center;">
           <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 11px; padding: 6px 10px;">Audio Alert: ON</button>
-          <button class="btn btn-secondary" id="broadcastModalBtn" style="font-size: 11px; padding: 6px 12px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">📢 Broadcast Notice</button>
+          <button class="btn btn-secondary" id="broadcastModalBtn" style="font-size: 11px; padding: 6px 12px;">📢 Broadcast Notice</button>
           <button class="btn btn-secondary" id="projectCodeBtn" style="font-size: 11px; padding: 6px 12px;">Project Access Code</button>
           <button class="btn btn-primary" id="refreshMonitorBtn" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
         </div>
@@ -111,27 +134,59 @@
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
             <h3 style="font-size: 14px; font-weight: 700;">Connected Student Terminals</h3>
-            <span class="badge" id="studentCountBadge">0 CONNECTED</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <span class="badge" id="studentCountBadge">0 CONNECTED</span>
+              <div style="display: flex; gap: 2px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
+                <button type="button" class="btn btn-secondary active" id="viewModeTableBtn" style="padding: 2px 7px; font-size: 10px; border: none;">Table</button>
+                <button type="button" class="btn btn-secondary" id="viewModeGridBtn" style="padding: 2px 7px; font-size: 10px; border: none;">Seat Grid</button>
+              </div>
+            </div>
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Roll No</th>
-                <th>Risk Score</th>
-                <th>Autosaved</th>
-                <th>Status</th>
-                <th>Flags</th>
-                <th>Control</th>
-              </tr>
-            </thead>
-            <tbody id="studentRosterTbody">
-              <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active session selected.</td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- Triage Health Pills Bar -->
+          <div class="triage-pills-bar" style="display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;">
+            <button class="triage-pill active" data-zone="all" id="pillZoneAll">
+              <span>All</span> <span class="triage-count" id="countZoneAll">0</span>
+            </button>
+            <button class="triage-pill green" data-zone="green" id="pillZoneGreen">
+              <span class="triage-dot green"></span> <span>On Track</span> <span class="triage-count" id="countZoneGreen">0</span>
+            </button>
+            <button class="triage-pill yellow" data-zone="yellow" id="pillZoneYellow">
+              <span class="triage-dot yellow"></span> <span>Struggling / Idle</span> <span class="triage-count" id="countZoneYellow">0</span>
+            </button>
+            <button class="triage-pill red" data-zone="red" id="pillZoneRed">
+              <span class="triage-dot red"></span> <span>High Suspicion</span> <span class="triage-count" id="countZoneRed">0</span>
+            </button>
+          </div>
+
+          <!-- View A: Table Container -->
+          <div id="tableContainer">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Roll No</th>
+                  <th>Health Zone</th>
+                  <th>Risk Score</th>
+                  <th>Autosaved</th>
+                  <th>Status</th>
+                  <th>Control</th>
+                </tr>
+              </thead>
+              <tbody id="studentRosterTbody">
+                <tr>
+                  <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active session selected.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- View B: Visual Lab Seat Grid Container -->
+          <div id="seatGridContainer" style="display: none;">
+            <div id="studentSeatGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px;">
+              <!-- Dynamically populated seat cards -->
+            </div>
+          </div>
         </div>
 
         <!-- Right Column: Live Streaming Security Flags Feed -->
@@ -352,12 +407,12 @@
       </div>
 
       <!-- Code Viewer Frame -->
-      <div style="flex: 1; min-height: 280px; max-height: 380px; background: #000; border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 14px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">
+      <div style="flex: 1; min-height: 280px; max-height: 380px; background: var(--code-box-bg); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--bg-subtle); border-bottom: 1px solid var(--border); font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">
           <span id="playbackCodeStats">Lines: 0 • Chars: 0</span>
           <span id="playbackKeyframeTs">Timestamp: --:--:--</span>
         </div>
-        <pre id="playbackCodeDisplay" style="flex: 1; padding: 12px 14px; margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: #e2e8f0; overflow-y: auto; user-select: text; white-space: pre-wrap; word-break: break-all;"></pre>
+        <pre id="playbackCodeDisplay" style="flex: 1; padding: 12px 14px; margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: var(--code-box-text); overflow-y: auto; user-select: text; white-space: pre-wrap; word-break: break-all;"></pre>
       </div>
 
       <!-- Scrubber Bar & Markers -->

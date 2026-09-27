@@ -8,6 +8,9 @@ const state = {
   ws: null,
   activeFlags: [],
   audioAlertEnabled: true,
+  triageStudents: [],
+  activeZoneFilter: 'all',
+  viewMode: 'table',
 };
 
 // Audio Alert Toggle
@@ -347,11 +350,14 @@ async function refreshMonitorView() {
 async function loadActiveSessionRoster(sessionId) {
   if (!state.token) return;
   try {
-    const res = await fetch(`/api/sessions/${sessionId}`, {
-      headers: { Authorization: `Bearer ${state.token}` },
-    });
-    if (!res.ok) return;
-    const session = await res.json();
+    const [sessRes, triageRes] = await Promise.all([
+      fetch(`/api/sessions/${sessionId}`, { headers: { Authorization: `Bearer ${state.token}` } }),
+      fetch(`/api/dashboard/triage?session_id=${sessionId}`, { headers: { Authorization: `Bearer ${state.token}` } }),
+    ]);
+
+    if (!sessRes.ok) return;
+    const session = await sessRes.json();
+    const triageData = triageRes.ok ? await triageRes.json() : null;
 
     document.getElementById('studentCountBadge').innerText = `${session.student_count} CONNECTED`;
 
@@ -365,71 +371,158 @@ async function loadActiveSessionRoster(sessionId) {
     if (metricActive) metricActive.innerText = session.student_count || 0;
     if (metricFlags) metricFlags.innerText = session.students?.reduce((acc, s) => acc + (s.flag_count || 0), 0) || 0;
 
-    const tbody = document.getElementById('studentRosterTbody');
-    tbody.innerHTML = '';
-
-    if (!session.students || session.students.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No students have joined this session yet. Project code on board!</td></tr>';
-      return;
+    // Update Triage Pill Counters
+    if (triageData && triageData.counts) {
+      document.getElementById('countZoneAll').innerText = triageData.counts.all || 0;
+      document.getElementById('countZoneGreen').innerText = triageData.counts.green || 0;
+      document.getElementById('countZoneYellow').innerText = triageData.counts.yellow || 0;
+      document.getElementById('countZoneRed').innerText = triageData.counts.red || 0;
+      state.triageStudents = triageData.students || [];
+    } else {
+      state.triageStudents = (session.students || []).map(s => ({
+        ...s,
+        zone: s.risk_score >= 60 ? 'red' : 'green',
+        zone_reason: 'Active session',
+        is_submitted: !!s.submitted_at
+      }));
     }
 
-    session.students.forEach((st) => {
-      const tr = document.createElement('tr');
-      const autosaveTime = st.last_autosaved_at ? new Date(st.last_autosaved_at).toLocaleTimeString() : 'Never';
-      const statusBadge = st.submitted_at
-        ? '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25);">SUBMITTED</span>'
-        : '<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text);">TAKING EXAM</span>';
-
-      const flagBadge = st.flag_count > 0
-        ? `<span class="badge" style="background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.25);">${st.flag_count} Flags</span>`
-        : '<span class="badge" style="background: rgba(16, 185, 129, 0.08); color: #34d399; border-color: rgba(16, 185, 129, 0.2);">Clean</span>';
-
-      const risk = st.risk_score || 0;
-      let riskClass = 'risk-clean';
-      let riskLabel = '0 Clean';
-      if (risk >= 75) {
-        riskClass = 'risk-high';
-        riskLabel = `⚠️ ${risk} High Risk`;
-      } else if (risk >= 50) {
-        riskClass = 'risk-suspicious';
-        riskLabel = `⚡ ${risk} Suspicious`;
-      } else if (risk >= 20) {
-        riskClass = 'risk-low';
-        riskLabel = `${risk} Low Risk`;
-      }
-      const riskBadge = `<span class="risk-badge ${riskClass}">${riskLabel}</span>`;
-
-      const extraTimeBadge = st.extra_time_seconds > 0
-        ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34d399; font-size: 10px; margin-left: 4px;">+${Math.round(st.extra_time_seconds / 60)}m</span>`
-        : '';
-
-      const playbackBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Interactive keystroke & growth replay">⏪ Playback</button>`;
-
-      const actionsHtml = st.submitted_at
-        ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}</div>`
-        : `
-          <div style="display: flex; gap: 4px;">
-            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
-            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
-            <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
-            ${playbackBtn}
-          </div>
-        `;
-
-      tr.innerHTML = `
-        <td><strong>${escapeHtml(st.student_name)}</strong></td>
-        <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">${escapeHtml(st.student_identifier)}</td>
-        <td>${riskBadge}</td>
-        <td style="font-size: 12px; font-family: var(--font-mono); color: var(--text-muted);">${autosaveTime}</td>
-        <td>${statusBadge}${extraTimeBadge}</td>
-        <td>${flagBadge}</td>
-        <td>${actionsHtml}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    renderTriageRoster();
   } catch (err) {
     console.error('Failed to load roster:', err);
   }
+}
+
+function renderTriageRoster() {
+  const tbody = document.getElementById('studentRosterTbody');
+  const gridContainer = document.getElementById('studentSeatGrid');
+  tbody.innerHTML = '';
+  gridContainer.innerHTML = '';
+
+  const allStudents = state.triageStudents || [];
+  const filtered = state.activeZoneFilter === 'all'
+    ? allStudents
+    : allStudents.filter(s => s.zone === state.activeZoneFilter);
+
+  if (filtered.length === 0) {
+    const emptyMsg = allStudents.length === 0
+      ? 'No students have joined this session yet. Project code on board!'
+      : `No students matching health filter "${state.activeZoneFilter}".`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">${emptyMsg}</td></tr>`;
+    gridContainer.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 24px;">${emptyMsg}</div>`;
+    return;
+  }
+
+  filtered.forEach((st) => {
+    // 1. Table Row
+    const tr = document.createElement('tr');
+    const autosaveTime = st.last_autosaved_at ? new Date(st.last_autosaved_at).toLocaleTimeString() : 'Never';
+    const statusBadge = st.is_submitted
+      ? '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25);">SUBMITTED</span>'
+      : '<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text);">TAKING EXAM</span>';
+
+    const risk = st.risk_score || 0;
+    let riskClass = 'risk-clean';
+    let riskLabel = '0 Clean';
+    if (risk >= 75) {
+      riskClass = 'risk-high';
+      riskLabel = `⚠️ ${risk} High Risk`;
+    } else if (risk >= 50) {
+      riskClass = 'risk-suspicious';
+      riskLabel = `⚡ ${risk} Suspicious`;
+    } else if (risk >= 20) {
+      riskClass = 'risk-low';
+      riskLabel = `${risk} Low Risk`;
+    }
+    const riskBadge = `<span class="risk-badge ${riskClass}">${riskLabel}</span>`;
+
+    let zoneBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34d399; font-size: 10px;">🟢 ON TRACK</span>';
+    if (st.zone === 'yellow') {
+      zoneBadge = '<span class="badge" style="background: rgba(245, 158, 11, 0.12); color: #fbbf24; font-size: 10px;">🟡 STRUGGLING</span>';
+    } else if (st.zone === 'red') {
+      zoneBadge = '<span class="badge" style="background: rgba(244, 63, 94, 0.15); color: #fda4af; font-size: 10px;">🔴 SUSPICIOUS</span>';
+    }
+
+    const extraTimeBadge = st.extra_time_seconds > 0
+      ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34d399; font-size: 10px; margin-left: 4px;">+${Math.round(st.extra_time_seconds / 60)}m</span>`
+      : '';
+
+    const playbackBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Interactive keystroke & growth replay">⏪ Playback</button>`;
+
+    const actionsHtml = st.is_submitted
+      ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}</div>`
+      : `
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
+          <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
+          <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
+          ${playbackBtn}
+        </div>
+      `;
+
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(st.student_name)}</strong></td>
+      <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">${escapeHtml(st.student_identifier)}</td>
+      <td><div title="${escapeHtml(st.zone_reason || '')}">${zoneBadge}</div></td>
+      <td>${riskBadge}</td>
+      <td style="font-size: 12px; font-family: var(--font-mono); color: var(--text-muted);">${autosaveTime}</td>
+      <td>${statusBadge}${extraTimeBadge}</td>
+      <td>${actionsHtml}</td>
+    `;
+    tbody.appendChild(tr);
+
+    // 2. Visual Seat Card
+    const seatCard = document.createElement('div');
+    seatCard.className = `seat-card zone-${st.zone}`;
+    seatCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+        <strong style="font-size: 12px; color: var(--text);">${escapeHtml(st.student_name)}</strong>
+        <span style="font-size: 10px; font-family: var(--font-mono); color: var(--text-tertiary);">${escapeHtml(st.student_identifier)}</span>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3;">${escapeHtml(st.zone_reason || '')}</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 6px;">
+        <span style="font-size: 10px; font-family: var(--font-mono);">${st.lines_count || 0} lines</span>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Replay code">⏪</button>
+          ${!st.is_submitted ? `<button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="extendStudentTime(${st.id}, 5)" title="+5m">+5m</button>` : ''}
+        </div>
+      </div>
+    `;
+    gridContainer.appendChild(seatCard);
+  });
+}
+
+// Triage Filter Pills & View Mode Toggles
+document.querySelectorAll('.triage-pill').forEach((pill) => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.triage-pill').forEach((p) => p.classList.remove('active'));
+    pill.classList.add('active');
+    state.activeZoneFilter = pill.dataset.zone || 'all';
+    renderTriageRoster();
+  });
+});
+
+const viewTableBtn = document.getElementById('viewModeTableBtn');
+const viewGridBtn = document.getElementById('viewModeGridBtn');
+const tableContainer = document.getElementById('tableContainer');
+const seatGridContainer = document.getElementById('seatGridContainer');
+
+if (viewTableBtn && viewGridBtn) {
+  viewTableBtn.addEventListener('click', () => {
+    state.viewMode = 'table';
+    viewTableBtn.classList.add('active');
+    viewGridBtn.classList.remove('active');
+    if (tableContainer) tableContainer.style.display = 'block';
+    if (seatGridContainer) seatGridContainer.style.display = 'none';
+  });
+
+  viewGridBtn.addEventListener('click', () => {
+    state.viewMode = 'grid';
+    viewGridBtn.classList.add('active');
+    viewTableBtn.classList.remove('active');
+    if (tableContainer) tableContainer.style.display = 'none';
+    if (seatGridContainer) seatGridContainer.style.display = 'block';
+  });
 }
 
 // Flags Management
