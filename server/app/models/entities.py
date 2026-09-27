@@ -58,6 +58,7 @@ class StudentInSession(Base):
     student_name = Column(String(150), nullable=False)
     student_identifier = Column(String(100), nullable=False)  # roll number / ID
     joined_at = Column(DateTime, default=utc_now, nullable=False)
+    risk_score = Column(Integer, default=0, nullable=False)
 
     session = relationship("Session", back_populates="students")
     submissions = relationship("Submission", back_populates="student_session")
@@ -83,10 +84,12 @@ class Flag(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_session_id = Column(Integer, ForeignKey("students_in_session.id"), nullable=False, index=True)
-    type = Column(String(50), nullable=False)  # focus-lost, focus-regained, fullscreen-exit, paste, connection-lost, reconnected
+    type = Column(String(50), nullable=False)  # focus-lost, focus-regained, fullscreen-exit, paste, connection-lost, reconnected, correlated-cheat-attempt
+    severity = Column(String(20), default="medium", nullable=False)  # info, low, medium, high, critical
     flag_metadata = Column("metadata", JSON, nullable=True)  # paste size, gap duration, correlated flags
     ts = Column(DateTime, default=utc_now, nullable=False, index=True)
     status = Column(String(30), nullable=False, default="open")  # open, dismissed, escalated
+    notes = Column(Text, nullable=True)
     reviewed_by = Column(Integer, ForeignKey("teachers.id"), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
 

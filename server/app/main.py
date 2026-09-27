@@ -10,8 +10,31 @@ from app.api.sessions import router as sessions_router
 from app.api.exam import router as exam_router
 from app.api.telemetry import router as telemetry_router
 
+from sqlalchemy import text
+
 # Create SQLite tables on startup
 Base.metadata.create_all(bind=engine)
+
+# Backwards-compatible schema upgrades for existing SQLite databases
+def upgrade_schema():
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE students_in_session ADD COLUMN risk_score INTEGER DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE flags ADD COLUMN severity VARCHAR(20) DEFAULT 'medium'"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE flags ADD COLUMN notes TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+
+upgrade_schema()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

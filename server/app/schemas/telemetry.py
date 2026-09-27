@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class TelemetryEvent(BaseModel):
     student_session_id: int
-    type: str = Field(..., pattern="^(focus-lost|focus-regained|fullscreen-exit|paste|connection-lost|reconnected)$")
+    type: str = Field(..., pattern="^(focus-lost|focus-regained|fullscreen-exit|paste|connection-lost|reconnected|correlated-cheat-attempt)$")
     metadata: Optional[dict[str, Any]] = None
     ts: Optional[datetime] = None
 
@@ -15,13 +15,17 @@ class FlagResponse(BaseModel):
     student_identifier: Optional[str] = None
     session_id: Optional[int] = None
     type: str
+    severity: Optional[str] = "medium"
     metadata: Optional[dict[str, Any]] = None
     ts: datetime
     status: str
+    notes: Optional[str] = None
     reviewed_by: Optional[int] = None
     reviewed_at: Optional[datetime] = None
+    risk_score: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class FlagStatusUpdate(BaseModel):
     status: str = Field(..., pattern="^(open|dismissed|escalated)$")
+    notes: Optional[str] = None

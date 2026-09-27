@@ -60,13 +60,14 @@
             <option value="">Select a Session to Monitor</option>
           </select>
         </div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 12px; padding: 6px 12px;">🔔 Audio Alert: ON</button>
           <button class="btn btn-secondary" id="projectCodeBtn">📽️ Project Access Code</button>
           <button class="btn btn-primary" id="refreshMonitorBtn">🔄 Refresh</button>
         </div>
       </div>
 
-      <div class="grid-2" style="grid-template-columns: 1.2fr 0.8fr;">
+      <div class="grid-2" style="grid-template-columns: 1.25fr 0.75fr;">
         <!-- Left Column: Active Students Roster -->
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
@@ -79,6 +80,7 @@
               <tr>
                 <th>Student</th>
                 <th>Roll No</th>
+                <th>Risk Score</th>
                 <th>Autosaved</th>
                 <th>Status</th>
                 <th>Flags</th>

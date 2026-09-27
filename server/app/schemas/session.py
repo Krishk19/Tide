@@ -17,6 +17,7 @@ class StudentInSessionItem(BaseModel):
     last_autosaved_at: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
     flag_count: int = 0
+    risk_score: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

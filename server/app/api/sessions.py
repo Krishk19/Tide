@@ -138,7 +138,8 @@ def get_session(
             joined_at=st.joined_at,
             last_autosaved_at=sub.last_autosaved_at if sub else None,
             submitted_at=sub.submitted_at if sub else None,
-            flag_count=flag_cnt
+            flag_count=flag_cnt,
+            risk_score=st.risk_score or 0
         ))
 
     return {

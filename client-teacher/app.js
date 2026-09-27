@@ -7,7 +7,18 @@ const state = {
   selectedSessionId: null,
   ws: null,
   activeFlags: [],
+  audioAlertEnabled: true,
 };
+
+// Audio Alert Toggle
+const audioToggleBtn = document.getElementById('audioAlertToggleBtn');
+if (audioToggleBtn) {
+  audioToggleBtn.addEventListener('click', () => {
+    state.audioAlertEnabled = !state.audioAlertEnabled;
+    audioToggleBtn.innerText = state.audioAlertEnabled ? '🔔 Audio Alert: ON' : '🔕 Audio Alert: OFF';
+    audioToggleBtn.style.color = state.audioAlertEnabled ? '#10b981' : '#94a3b8';
+  });
+}
 
 // DOM Elements
 const authSection = document.getElementById('authSection');
@@ -140,6 +151,25 @@ logoutBtn.addEventListener('click', () => {
   showUnauthenticatedUI();
 });
 
+// Web Audio API Chime for Critical Alerts
+function playAlertChime() {
+  if (!state.audioAlertEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) {}
+}
+
 // WebSocket Live Telemetry Feed
 function connectTeacherWebSocket() {
   if (!state.token) return;
@@ -158,8 +188,8 @@ function connectTeacherWebSocket() {
         prependFlagCard(data.flag);
         // Refresh active student roster if needed
         if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
-      } else if (data.event === 'student_submitted') {
-        // Refresh active student roster immediately to show SUBMITTED badge
+      } else if (data.event === 'student_submitted' || data.event === 'risk_score_update') {
+        // Refresh active student roster immediately to show SUBMITTED badge or new Risk Score
         if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
       }
     };
@@ -307,9 +337,25 @@ async function loadActiveSessionRoster(sessionId) {
         ? `<span class="badge" style="background: #78350f; color: #fed7aa;">${st.flag_count} Flags</span>`
         : '<span class="badge" style="background: #065f46; color: #a7f3d0;">Clean</span>';
 
+      const risk = st.risk_score || 0;
+      let riskClass = 'risk-clean';
+      let riskLabel = '0 Clean';
+      if (risk >= 75) {
+        riskClass = 'risk-high';
+        riskLabel = `⚠️ ${risk} High Risk`;
+      } else if (risk >= 50) {
+        riskClass = 'risk-suspicious';
+        riskLabel = `⚡ ${risk} Suspicious`;
+      } else if (risk >= 20) {
+        riskClass = 'risk-low';
+        riskLabel = `${risk} Low Risk`;
+      }
+      const riskBadge = `<span class="risk-badge ${riskClass}">${riskLabel}</span>`;
+
       tr.innerHTML = `
         <td><strong>${escapeHtml(st.student_name)}</strong></td>
         <td style="font-family: monospace;">${escapeHtml(st.student_identifier)}</td>
+        <td>${riskBadge}</td>
         <td style="font-size: 13px; color: #94a3b8;">${autosaveTime}</td>
         <td>${statusBadge}</td>
         <td>${flagBadge}</td>
@@ -351,8 +397,9 @@ function prependFlagCard(flag, isNew = true) {
   if (feed.innerText.includes('Awaiting telemetry')) feed.innerHTML = '';
 
   const card = document.createElement('div');
-  const isDanger = ['fullscreen-exit', 'connection-lost', 'paste'].includes(flag.type);
-  card.className = `flag-card ${isDanger ? 'danger' : 'info'}`;
+  const isCritical = flag.type === 'correlated-cheat-attempt' || flag.severity === 'critical';
+  const isDanger = ['fullscreen-exit', 'connection-lost', 'paste'].includes(flag.type) || isCritical;
+  card.className = `flag-card ${isCritical ? 'critical' : isDanger ? 'danger' : 'info'}`;
   card.id = `flag-card-${flag.id}`;
 
   const timeStr = new Date(flag.ts).toLocaleTimeString();
@@ -360,11 +407,24 @@ function prependFlagCard(flag, isNew = true) {
   if (flag.type === 'focus-lost') descText = 'Window lost focus (Alt-Tab or window switch)';
   if (flag.type === 'focus-regained') descText = 'Window regained focus';
   if (flag.type === 'fullscreen-exit') descText = 'Attempted to exit fullscreen kiosk';
-  if (flag.type === 'paste') descText = `Pasted ${flag.metadata?.length || 0} characters into code editor`;
+  if (flag.type === 'paste') {
+    descText = `Pasted ${flag.metadata?.length || 0} characters into code editor`;
+    if (flag.metadata?.sample) {
+      descText += `<div style="font-family: monospace; font-size: 11px; background: #000; padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: #94a3b8;">Sample: "${escapeHtml(flag.metadata.sample)}"</div>`;
+    }
+  }
   if (flag.type === 'connection-lost') descText = 'Abrupt WebSocket disconnect detected';
   if (flag.type === 'reconnected') descText = 'Student reconnected to exam session';
+  if (flag.type === 'correlated-cheat-attempt') {
+    descText = `⚠️ <strong>HIGH-CONFIDENCE CORRELATION ALERT:</strong> ${escapeHtml(flag.metadata?.reason || 'Window lost focus followed immediately by external paste.')}`;
+    if (flag.metadata?.paste_sample) {
+      descText += `<div style="font-family: monospace; font-size: 11px; background: #000; padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: #f87171;">Sample: "${escapeHtml(flag.metadata.paste_sample)}"</div>`;
+    }
+    if (isNew) playAlertChime();
+  }
 
   const isReviewed = flag.status !== 'open';
+  const notesText = flag.notes ? `<div style="font-size: 11px; color: #93c5fd; margin-top: 4px;"><em>Note: ${escapeHtml(flag.notes)}</em></div>` : '';
 
   card.innerHTML = `
     <div class="flag-header">
@@ -375,12 +435,15 @@ function prependFlagCard(flag, isNew = true) {
       </div>
       <span style="font-size: 11px; color: var(--text-muted);">${timeStr}</span>
     </div>
-    <div class="flag-desc">${descText}</div>
+    <div class="flag-desc">${descText}${notesText}</div>
     <div style="display: flex; justify-content: flex-end; gap: 6px;">
       ${
         isReviewed
-          ? `<span style="font-size: 11px; color: #10b981; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
-          : `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="dismissFlag(${flag.id})">Dismiss Flag</button>`
+          ? `<span style="font-size: 11px; color: ${flag.status === 'escalated' ? '#f87171' : '#10b981'}; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
+          : `
+            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="dismissFlag(${flag.id})">Dismiss</button>
+            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; background: #7f1d1d; color: #fecaca;" onclick="escalateFlag(${flag.id})">⚠️ Escalate</button>
+          `
       }
     </div>
   `;
@@ -394,6 +457,8 @@ function prependFlagCard(flag, isNew = true) {
 
 // Non-Destructive Flag Dismiss
 window.dismissFlag = async function (flagId) {
+  const notes = prompt('Optional dismissal note (or press OK):', 'False alarm / verified');
+  if (notes === null) return;
   try {
     const res = await fetch(`/api/dashboard/flags/${flagId}`, {
       method: 'PATCH',
@@ -401,7 +466,7 @@ window.dismissFlag = async function (flagId) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${state.token}`,
       },
-      body: JSON.stringify({ status: 'dismissed' }),
+      body: JSON.stringify({ status: 'dismissed', notes: notes }),
     });
     if (res.ok) {
       const card = document.getElementById(`flag-card-${flagId}`);
@@ -409,9 +474,36 @@ window.dismissFlag = async function (flagId) {
         card.querySelector('div:last-child').innerHTML =
           '<span style="font-size: 11px; color: #10b981; font-weight: 600;">✓ Dismissed by Instructor</span>';
       }
+      if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
     }
   } catch (err) {
     console.error('Dismiss flag error:', err);
+  }
+};
+
+// Disciplinary Flag Escalate
+window.escalateFlag = async function (flagId) {
+  const notes = prompt('Disciplinary review note for escalation:', 'Flagged for academic review');
+  if (notes === null) return;
+  try {
+    const res = await fetch(`/api/dashboard/flags/${flagId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${state.token}`,
+      },
+      body: JSON.stringify({ status: 'escalated', notes: notes }),
+    });
+    if (res.ok) {
+      const card = document.getElementById(`flag-card-${flagId}`);
+      if (card) {
+        card.querySelector('div:last-child').innerHTML =
+          '<span style="font-size: 11px; color: #f87171; font-weight: 600;">⚠️ Escalated for Review</span>';
+      }
+      if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
+    }
+  } catch (err) {
+    console.error('Escalate flag error:', err);
   }
 };
 

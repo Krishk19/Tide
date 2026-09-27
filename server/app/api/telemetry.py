@@ -10,6 +10,7 @@ from app.core.database import get_db, SessionLocal
 from app.core.security import get_current_teacher
 from app.models.entities import Teacher, Flag, StudentInSession, Session as ExamSession, Submission
 from app.schemas.telemetry import TelemetryEvent, FlagResponse, FlagStatusUpdate
+from app.services.heuristics import buffer_event, evaluate_correlation, calculate_risk_score
 
 router = APIRouter(tags=["Telemetry & Flags"])
 
@@ -59,11 +60,14 @@ def record_flag_in_db(
     student_session_id: int,
     flag_type: str,
     metadata: Optional[dict[str, Any]] = None,
-    ts: Optional[datetime] = None
-) -> tuple[Optional[Flag], int]:
+    ts: Optional[datetime] = None,
+    severity: Optional[str] = None
+) -> tuple[Optional[Flag], Optional[Flag], int, int]:
     """
-    Persists a telemetry event to SQLite and determines the owning teacher_id.
+    Persists a telemetry event to SQLite, checks for sliding-window correlations,
+    computes live risk score, and determines the owning teacher_id.
     Suppresses flags if the student has already completed and submitted their assessment.
+    Returns: (primary_flag, correlated_flag, teacher_id, risk_score)
     """
     student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
     if not student:
@@ -76,15 +80,29 @@ def record_flag_in_db(
     sub = db.query(Submission).filter(Submission.student_session_id == student_session_id).first()
     if sub and sub.submitted_at is not None:
         # Submission is finalized: suppress post-submission flags (disconnects, blur, window exit)
-        return None, teacher_id
+        return None, None, teacher_id, student.risk_score or 0
 
     event_time = ts or datetime.now(timezone.utc)
     if event_time.tzinfo is None:
         event_time = event_time.replace(tzinfo=timezone.utc)
 
+    # Determine default severity
+    if not severity:
+        if flag_type == "correlated-cheat-attempt":
+            severity = "critical"
+        elif flag_type in ("fullscreen-exit", "connection-lost"):
+            severity = "high"
+        elif flag_type == "paste":
+            severity = "high" if (metadata or {}).get("length", 0) >= 50 else "medium"
+        elif flag_type == "focus-lost":
+            severity = "medium"
+        else:
+            severity = "info"
+
     flag = Flag(
         student_session_id=student_session_id,
         type=flag_type,
+        severity=severity,
         flag_metadata=metadata or {},
         ts=event_time,
         status="open"
@@ -92,7 +110,30 @@ def record_flag_in_db(
     db.add(flag)
     db.commit()
     db.refresh(flag)
-    return flag, teacher_id
+
+    # 1. In-memory sliding window buffer
+    buffer_event(student_session_id, flag_type, event_time, metadata)
+
+    # 2. Evaluate correlation
+    corr_flag = None
+    corr_data = evaluate_correlation(student_session_id, flag_type, event_time, metadata)
+    if corr_data:
+        corr_flag = Flag(
+            student_session_id=student_session_id,
+            type=corr_data["type"],
+            severity=corr_data.get("severity", "critical"),
+            flag_metadata=corr_data.get("metadata", {}),
+            ts=event_time,
+            status="open"
+        )
+        db.add(corr_flag)
+        db.commit()
+        db.refresh(corr_flag)
+
+    # 3. Dynamic Risk Score Calculation
+    risk_score = calculate_risk_score(db, student_session_id)
+
+    return flag, corr_flag, teacher_id, risk_score
 
 @router.post("/api/telemetry/event", response_model=FlagResponse)
 async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db)):
@@ -101,7 +142,7 @@ async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db
     Saves to database and live-broadcasts to teacher WebSocket.
     """
     try:
-        flag, teacher_id = record_flag_in_db(
+        flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
             db,
             student_session_id=req.student_session_id,
             flag_type=req.type,
@@ -122,11 +163,14 @@ async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db
             student_identifier=student.student_identifier if student else None,
             session_id=student.session_id if student else None,
             type=req.type,
+            severity="info",
             metadata={"status": "ignored_post_submission"},
             ts=req.ts or datetime.now(timezone.utc),
-            status="dismissed"
+            status="dismissed",
+            risk_score=student.risk_score if student else 0
         )
 
+    # Broadcast primary flag
     payload = {
         "event": "new_flag",
         "flag": {
@@ -136,12 +180,41 @@ async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db
             "student_identifier": student.student_identifier if student else "Unknown",
             "session_id": student.session_id if student else None,
             "type": flag.type,
+            "severity": flag.severity,
             "metadata": flag.flag_metadata,
             "ts": flag.ts.isoformat(),
-            "status": flag.status
+            "status": flag.status,
+            "risk_score": risk_score
         }
     }
     await manager.broadcast_to_teacher(teacher_id, payload)
+
+    # Broadcast synthesized correlated flag if triggered
+    if corr_flag:
+        corr_payload = {
+            "event": "new_flag",
+            "flag": {
+                "id": corr_flag.id,
+                "student_session_id": corr_flag.student_session_id,
+                "student_name": student.student_name if student else "Unknown",
+                "student_identifier": student.student_identifier if student else "Unknown",
+                "session_id": student.session_id if student else None,
+                "type": corr_flag.type,
+                "severity": corr_flag.severity,
+                "metadata": corr_flag.flag_metadata,
+                "ts": corr_flag.ts.isoformat(),
+                "status": corr_flag.status,
+                "risk_score": risk_score
+            }
+        }
+        await manager.broadcast_to_teacher(teacher_id, corr_payload)
+
+    # Broadcast risk score update to refresh teacher roster
+    await manager.broadcast_to_teacher(teacher_id, {
+        "event": "risk_score_update",
+        "student_session_id": student.id if student else req.student_session_id,
+        "risk_score": risk_score
+    })
 
     return FlagResponse(
         id=flag.id,
@@ -150,9 +223,11 @@ async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db
         student_identifier=student.student_identifier if student else None,
         session_id=student.session_id if student else None,
         type=flag.type,
+        severity=flag.severity,
         metadata=flag.flag_metadata,
         ts=flag.ts,
-        status=flag.status
+        status=flag.status,
+        risk_score=risk_score
     )
 
 @router.websocket("/ws/student/{student_session_id}")
@@ -166,7 +241,7 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
     # Broadcast connection/reconnection
     db = SessionLocal()
     try:
-        flag, teacher_id = record_flag_in_db(
+        flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
             db,
             student_session_id=student_session_id,
             flag_type="reconnected",
@@ -183,9 +258,11 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
                     "student_identifier": student.student_identifier if student else "Unknown",
                     "session_id": student.session_id if student else None,
                     "type": "reconnected",
+                    "severity": flag.severity,
                     "metadata": flag.flag_metadata,
                     "ts": flag.ts.isoformat(),
-                    "status": "open"
+                    "status": "open",
+                    "risk_score": risk_score
                 }
             })
     except Exception:
@@ -202,7 +279,7 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
 
             db = SessionLocal()
             try:
-                flag, teacher_id = record_flag_in_db(
+                flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
                     db,
                     student_session_id=student_session_id,
                     flag_type=event_type,
@@ -219,10 +296,38 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
                             "student_identifier": student.student_identifier if student else "Unknown",
                             "session_id": student.session_id if student else None,
                             "type": flag.type,
+                            "severity": flag.severity,
                             "metadata": flag.flag_metadata,
                             "ts": flag.ts.isoformat(),
-                            "status": "open"
+                            "status": "open",
+                            "risk_score": risk_score
                         }
+                    })
+
+                if corr_flag:
+                    student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
+                    await manager.broadcast_to_teacher(teacher_id, {
+                        "event": "new_flag",
+                        "flag": {
+                            "id": corr_flag.id,
+                            "student_session_id": student_session_id,
+                            "student_name": student.student_name if student else "Unknown",
+                            "student_identifier": student.student_identifier if student else "Unknown",
+                            "session_id": student.session_id if student else None,
+                            "type": corr_flag.type,
+                            "severity": corr_flag.severity,
+                            "metadata": corr_flag.flag_metadata,
+                            "ts": corr_flag.ts.isoformat(),
+                            "status": "open",
+                            "risk_score": risk_score
+                        }
+                    })
+
+                if flag:
+                    await manager.broadcast_to_teacher(teacher_id, {
+                        "event": "risk_score_update",
+                        "student_session_id": student_session_id,
+                        "risk_score": risk_score
                     })
             finally:
                 db.close()
@@ -232,7 +337,7 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
         # Log connection-lost on abrupt disconnect (only if not already submitted)
         db = SessionLocal()
         try:
-            flag, teacher_id = record_flag_in_db(
+            flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
                 db,
                 student_session_id=student_session_id,
                 flag_type="connection-lost",
@@ -249,10 +354,17 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
                         "student_identifier": student.student_identifier if student else "Unknown",
                         "session_id": student.session_id if student else None,
                         "type": "connection-lost",
+                        "severity": flag.severity,
                         "metadata": flag.flag_metadata,
                         "ts": flag.ts.isoformat(),
-                        "status": "open"
+                        "status": "open",
+                        "risk_score": risk_score
                     }
+                })
+                await manager.broadcast_to_teacher(teacher_id, {
+                    "event": "risk_score_update",
+                    "student_session_id": student_session_id,
+                    "risk_score": risk_score
                 })
         except Exception:
             pass
@@ -314,16 +426,19 @@ def get_teacher_flags(
             student_identifier=st.student_identifier,
             session_id=sess.id,
             type=f.type,
+            severity=f.severity,
             metadata=f.flag_metadata,
             ts=f.ts,
             status=f.status,
+            notes=f.notes,
             reviewed_by=f.reviewed_by,
-            reviewed_at=f.reviewed_at
+            reviewed_at=f.reviewed_at,
+            risk_score=st.risk_score or 0
         ))
     return flags
 
 @router.patch("/api/dashboard/flags/{flag_id}", response_model=FlagResponse)
-def update_flag_status(
+async def update_flag_status(
     flag_id: int,
     req: FlagStatusUpdate,
     current_teacher: Teacher = Depends(get_current_teacher),
@@ -331,7 +446,8 @@ def update_flag_status(
 ):
     """
     Non-destructive flag review: marks flag as 'dismissed' or 'escalated'
-    along with reviewer ID and timestamp. Preserves complete audit trail.
+    along with reviewer ID, timestamp, and optional notes.
+    Recalculates risk score to reward false-positive dismissal.
     """
     item = (
         db.query(Flag, StudentInSession, ExamSession)
@@ -345,10 +461,20 @@ def update_flag_status(
 
     flag, st, sess = item
     flag.status = req.status
+    if req.notes is not None:
+        flag.notes = req.notes
     flag.reviewed_by = current_teacher.id
     flag.reviewed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(flag)
+
+    # Recalculate dynamic risk score upon review
+    new_risk = calculate_risk_score(db, flag.student_session_id)
+    await manager.broadcast_to_teacher(current_teacher.id, {
+        "event": "risk_score_update",
+        "student_session_id": st.id,
+        "risk_score": new_risk
+    })
 
     return FlagResponse(
         id=flag.id,
@@ -357,9 +483,12 @@ def update_flag_status(
         student_identifier=st.student_identifier,
         session_id=sess.id,
         type=flag.type,
+        severity=flag.severity,
         metadata=flag.flag_metadata,
         ts=flag.ts,
         status=flag.status,
+        notes=flag.notes,
         reviewed_by=flag.reviewed_by,
-        reviewed_at=flag.reviewed_at
+        reviewed_at=flag.reviewed_at,
+        risk_score=new_risk
     )
