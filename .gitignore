@@ -48,3 +48,8 @@ desktop.ini
 # Logs & scratch
 *.log
 scratch/
+
+# Local secrets (OpenRouter key etc.)
+.env.*
+!.env.example
+tide-data/
