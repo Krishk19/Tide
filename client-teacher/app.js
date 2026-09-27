@@ -158,6 +158,9 @@ function connectTeacherWebSocket() {
         prependFlagCard(data.flag);
         // Refresh active student roster if needed
         if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
+      } else if (data.event === 'student_submitted') {
+        // Refresh active student roster immediately to show SUBMITTED badge
+        if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
       }
     };
     state.ws.onclose = () => {

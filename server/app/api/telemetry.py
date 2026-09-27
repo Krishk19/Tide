@@ -8,7 +8,7 @@ from jose import jwt, JWTError
 from app.core.config import settings
 from app.core.database import get_db, SessionLocal
 from app.core.security import get_current_teacher
-from app.models.entities import Teacher, Flag, StudentInSession, Session as ExamSession
+from app.models.entities import Teacher, Flag, StudentInSession, Session as ExamSession, Submission
 from app.schemas.telemetry import TelemetryEvent, FlagResponse, FlagStatusUpdate
 
 router = APIRouter(tags=["Telemetry & Flags"])
@@ -60,9 +60,10 @@ def record_flag_in_db(
     flag_type: str,
     metadata: Optional[dict[str, Any]] = None,
     ts: Optional[datetime] = None
-) -> tuple[Flag, int]:
+) -> tuple[Optional[Flag], int]:
     """
     Persists a telemetry event to SQLite and determines the owning teacher_id.
+    Suppresses flags if the student has already completed and submitted their assessment.
     """
     student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
     if not student:
@@ -70,6 +71,12 @@ def record_flag_in_db(
 
     session: ExamSession = student.session
     teacher_id = session.teacher_id
+
+    # Check if student has already submitted their assessment
+    sub = db.query(Submission).filter(Submission.student_session_id == student_session_id).first()
+    if sub and sub.submitted_at is not None:
+        # Submission is finalized: suppress post-submission flags (disconnects, blur, window exit)
+        return None, teacher_id
 
     event_time = ts or datetime.now(timezone.utc)
     if event_time.tzinfo is None:
@@ -105,6 +112,20 @@ async def post_telemetry_event(req: TelemetryEvent, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail=str(e))
 
     student = db.query(StudentInSession).filter(StudentInSession.id == req.student_session_id).first()
+
+    if not flag:
+        # Suppressed post-submission
+        return FlagResponse(
+            id=0,
+            student_session_id=req.student_session_id,
+            student_name=student.student_name if student else None,
+            student_identifier=student.student_identifier if student else None,
+            session_id=student.session_id if student else None,
+            type=req.type,
+            metadata={"status": "ignored_post_submission"},
+            ts=req.ts or datetime.now(timezone.utc),
+            status="dismissed"
+        )
 
     payload = {
         "event": "new_flag",
@@ -151,21 +172,22 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
             flag_type="reconnected",
             metadata={"source": "websocket_connect"}
         )
-        student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
-        await manager.broadcast_to_teacher(teacher_id, {
-            "event": "new_flag",
-            "flag": {
-                "id": flag.id,
-                "student_session_id": student_session_id,
-                "student_name": student.student_name if student else "Unknown",
-                "student_identifier": student.student_identifier if student else "Unknown",
-                "session_id": student.session_id if student else None,
-                "type": "reconnected",
-                "metadata": flag.flag_metadata,
-                "ts": flag.ts.isoformat(),
-                "status": "open"
-            }
-        })
+        if flag:
+            student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
+            await manager.broadcast_to_teacher(teacher_id, {
+                "event": "new_flag",
+                "flag": {
+                    "id": flag.id,
+                    "student_session_id": student_session_id,
+                    "student_name": student.student_name if student else "Unknown",
+                    "student_identifier": student.student_identifier if student else "Unknown",
+                    "session_id": student.session_id if student else None,
+                    "type": "reconnected",
+                    "metadata": flag.flag_metadata,
+                    "ts": flag.ts.isoformat(),
+                    "status": "open"
+                }
+            })
     except Exception:
         pass
     finally:
@@ -186,6 +208,37 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
                     flag_type=event_type,
                     metadata=metadata
                 )
+                if flag:
+                    student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
+                    await manager.broadcast_to_teacher(teacher_id, {
+                        "event": "new_flag",
+                        "flag": {
+                            "id": flag.id,
+                            "student_session_id": student_session_id,
+                            "student_name": student.student_name if student else "Unknown",
+                            "student_identifier": student.student_identifier if student else "Unknown",
+                            "session_id": student.session_id if student else None,
+                            "type": flag.type,
+                            "metadata": flag.flag_metadata,
+                            "ts": flag.ts.isoformat(),
+                            "status": "open"
+                        }
+                    })
+            finally:
+                db.close()
+
+    except WebSocketDisconnect:
+        manager.disconnect_student(student_session_id, websocket)
+        # Log connection-lost on abrupt disconnect (only if not already submitted)
+        db = SessionLocal()
+        try:
+            flag, teacher_id = record_flag_in_db(
+                db,
+                student_session_id=student_session_id,
+                flag_type="connection-lost",
+                metadata={"reason": "abrupt_socket_close"}
+            )
+            if flag:
                 student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
                 await manager.broadcast_to_teacher(teacher_id, {
                     "event": "new_flag",
@@ -195,41 +248,12 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
                         "student_name": student.student_name if student else "Unknown",
                         "student_identifier": student.student_identifier if student else "Unknown",
                         "session_id": student.session_id if student else None,
-                        "type": flag.type,
+                        "type": "connection-lost",
                         "metadata": flag.flag_metadata,
                         "ts": flag.ts.isoformat(),
                         "status": "open"
                     }
                 })
-            finally:
-                db.close()
-
-    except WebSocketDisconnect:
-        manager.disconnect_student(student_session_id, websocket)
-        # Log connection-lost on abrupt disconnect
-        db = SessionLocal()
-        try:
-            flag, teacher_id = record_flag_in_db(
-                db,
-                student_session_id=student_session_id,
-                flag_type="connection-lost",
-                metadata={"reason": "abrupt_socket_close"}
-            )
-            student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
-            await manager.broadcast_to_teacher(teacher_id, {
-                "event": "new_flag",
-                "flag": {
-                    "id": flag.id,
-                    "student_session_id": student_session_id,
-                    "student_name": student.student_name if student else "Unknown",
-                    "student_identifier": student.student_identifier if student else "Unknown",
-                    "session_id": student.session_id if student else None,
-                    "type": "connection-lost",
-                    "metadata": flag.flag_metadata,
-                    "ts": flag.ts.isoformat(),
-                    "status": "open"
-                }
-            })
         except Exception:
             pass
         finally:

@@ -10,7 +10,31 @@ let state = {
   autosaveTimer: null,
   ws: null,
   currentLanguage: 'python',
+  isSubmitted: false,
 };
+
+// Auto-detect server URL from current location or localStorage
+if (window.location.protocol.startsWith('http')) {
+  state.serverUrl = window.location.origin;
+} else if (localStorage.getItem('tide_server_url')) {
+  state.serverUrl = localStorage.getItem('tide_server_url');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const serverHostInput = document.getElementById('serverHostInput');
+  if (serverHostInput) {
+    serverHostInput.value = state.serverUrl;
+  }
+
+  const toggleSettingsBtn = document.getElementById('toggleServerSettingsBtn');
+  const settingsContainer = document.getElementById('serverSettingsContainer');
+  if (toggleSettingsBtn && settingsContainer) {
+    toggleSettingsBtn.addEventListener('click', () => {
+      const isHidden = settingsContainer.style.display === 'none';
+      settingsContainer.style.display = isHidden ? 'block' : 'none';
+    });
+  }
+});
 
 // Internal Clipboard Tracker:
 // Allows copying/pasting within the exam window without generating flags!
@@ -89,6 +113,9 @@ function switchView(viewName) {
 
 // Telemetry Sender
 function sendTelemetry(type, metadata = {}) {
+  // Suppress all flags if student has already submitted
+  if (state.isSubmitted) return;
+
   const payload = {
     student_session_id: state.studentSessionId,
     type: type,
@@ -125,6 +152,7 @@ function connectTelemetryWebSocket() {
 
 // Handle Fullscreen Exit Lockout (Pause screen until resumed)
 function handleFullscreenExit() {
+  if (state.isSubmitted) return;
   const isExamActive = views.exam.classList.contains('active') || views.countdown.classList.contains('active');
   if (state.studentSessionId && isExamActive) {
     sendTelemetry('fullscreen-exit', { source: 'window-exit' });
@@ -137,6 +165,7 @@ function handleFullscreenExit() {
 // Electron Main Process IPC Telemetry Hook
 if (window.electronAPI && window.electronAPI.onKioskEvent) {
   window.electronAPI.onKioskEvent((event) => {
+    if (state.isSubmitted) return;
     console.log('Kiosk Security Event:', event);
     if (event.type === 'fullscreen-exit') {
       handleFullscreenExit();
@@ -147,16 +176,19 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
 } else {
   // Web Browser / Kiosk Fallback listeners (works in Chrome, Edge, Firefox)
   window.addEventListener('blur', () => {
+    if (state.isSubmitted) return;
     console.log('[Browser Telemetry] focus-lost');
     if (state.studentSessionId) sendTelemetry('focus-lost', { source: 'browser-blur' });
   });
 
   window.addEventListener('focus', () => {
+    if (state.isSubmitted) return;
     console.log('[Browser Telemetry] focus-regained');
     if (state.studentSessionId) sendTelemetry('focus-regained', { source: 'browser-focus' });
   });
 
   document.addEventListener('visibilitychange', () => {
+    if (state.isSubmitted) return;
     if (document.hidden) {
       console.log('[Browser Telemetry] tab-switched-out');
       if (state.studentSessionId) sendTelemetry('focus-lost', { source: 'tab-hidden' });
@@ -167,6 +199,7 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
   });
 
   document.addEventListener('fullscreenchange', () => {
+    if (state.isSubmitted) return;
     if (!document.fullscreenElement) {
       console.log('[Browser Telemetry] fullscreen-exit');
       handleFullscreenExit();
@@ -217,7 +250,11 @@ joinBtn.addEventListener('click', async () => {
 
 async function executeJoinFlow() {
   joinError.style.display = 'none';
-  state.serverUrl = document.getElementById('serverHostInput').value.trim().replace(/\/$/, '');
+  const customHost = document.getElementById('serverHostInput')?.value.trim().replace(/\/$/, '');
+  if (customHost) {
+    state.serverUrl = customHost;
+    localStorage.setItem('tide_server_url', customHost);
+  }
   state.accessCode = document.getElementById('accessCodeInput').value.trim().toUpperCase();
   state.studentName = document.getElementById('studentNameInput').value.trim();
   state.studentIdentifier = document.getElementById('studentIdInput').value.trim();
@@ -522,6 +559,22 @@ confirmSubmitBtn.addEventListener('click', async () => {
 });
 
 function showSubmittedScreen(result) {
+  state.isSubmitted = true;
+  if (state.autosaveTimer) clearTimeout(state.autosaveTimer);
+  if (state.countdownInterval) clearInterval(state.countdownInterval);
+
+  if (state.ws) {
+    try {
+      state.ws.close(1000, 'Exam submitted');
+    } catch (e) {}
+    state.ws = null;
+  }
+
+  // Dismiss lockout overlay if active
+  if (fullscreenLockoutOverlay) {
+    fullscreenLockoutOverlay.style.display = 'none';
+  }
+
   switchView('submitted');
   autosaveIndicator.style.display = 'none';
   headerSubmitBtn.style.display = 'none';

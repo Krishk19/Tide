@@ -144,7 +144,7 @@ def run_code_visible_tests(req: CodeRunRequest, db: Session = Depends(get_db)):
     )
 
 @router.post("/submit", response_model=CodeSubmitResponse)
-def submit_exam(req: CodeSubmitRequest, db: Session = Depends(get_db)):
+async def submit_exam(req: CodeSubmitRequest, db: Session = Depends(get_db)):
     """
     Evaluates student code against both visible AND hidden test cases.
     Grades server-side only: hidden inputs and outputs are never returned to the student.
@@ -206,6 +206,20 @@ def submit_exam(req: CodeSubmitRequest, db: Session = Depends(get_db)):
     }
     db.commit()
     db.refresh(sub)
+
+    # Live notify teacher command center
+    try:
+        from app.api.telemetry import manager
+        await manager.broadcast_to_teacher(session.teacher_id, {
+            "event": "student_submitted",
+            "student_session_id": student.id,
+            "student_name": student.student_name,
+            "student_identifier": student.student_identifier,
+            "session_id": session.id,
+            "score_percentage": score_pct
+        })
+    except Exception:
+        pass
 
     return CodeSubmitResponse(
         is_submitted=True,
