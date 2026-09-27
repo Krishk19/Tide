@@ -395,7 +395,20 @@ function triggerInternetDetected(source = 'canary-probe') {
 }
 
 // Active Canary Probe for External Internet Connectivity
+// NOTE: Disabled by default for local dev/testing so home/office Wi-Fi doesn't freeze the exam.
+// Can be toggled on via window.enableInternetDetection(true) or manually triggered via Ctrl+Alt+Shift+I.
+let enableAutoInternetDetection = false;
+
+window.enableInternetDetection = function(enabled = true) {
+  enableAutoInternetDetection = enabled;
+  console.log(`[Tide Security] Automatic internet detection is now: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  if (enabled) {
+    checkInternetConnection();
+  }
+};
+
 async function checkInternetConnection() {
+  if (!enableAutoInternetDetection) return false;
   if (!state.studentSessionId || state.isSubmitted || state.isFrozen) return false;
   if (state.suppressInternetProbeUntil && Date.now() < state.suppressInternetProbeUntil) return false;
 
@@ -432,17 +445,21 @@ async function checkInternetConnection() {
   return false;
 }
 
-// Periodic Canary Probe Interval (every 4 seconds)
-setInterval(checkInternetConnection, 4000);
+// Periodic Canary Probe Interval (only runs if enableAutoInternetDetection is turned on)
+setInterval(() => {
+  if (enableAutoInternetDetection) {
+    checkInternetConnection();
+  }
+}, 4000);
 
-// Network online event listener
+// Network online event listener (only triggers if enableAutoInternetDetection is turned on)
 window.addEventListener('online', () => {
-  if (state.studentSessionId && !state.isSubmitted && !state.isFrozen) {
+  if (enableAutoInternetDetection && state.studentSessionId && !state.isSubmitted && !state.isFrozen) {
     triggerInternetDetected('browser-online-event');
   }
 });
 
-// Proctor / Evaluator demo test trigger
+// Proctor / Evaluator demo test trigger (available anytime for manual testing)
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
     e.preventDefault();
