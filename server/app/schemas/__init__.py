@@ -1,1 +1,0 @@
-# Tide Pydantic Schemas
