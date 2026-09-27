@@ -122,8 +122,10 @@
             <option value="">Select a Session to Monitor</option>
           </select>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
           <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 11px; padding: 6px 10px;">Audio Alert: ON</button>
+          <button class="btn btn-secondary" id="exportMarksheetBtn" style="font-size: 11px; padding: 6px 11px;" title="1-Click University Marksheet Export (CSV)">📥 Export CSV</button>
+          <button class="btn btn-secondary" id="exportDossierBtn" style="font-size: 11px; padding: 6px 11px;" title="Full Session Forensic Dossier Export (JSON)">📁 Export JSON</button>
           <button class="btn btn-secondary" id="broadcastModalBtn" style="font-size: 11px; padding: 6px 12px;">📢 Broadcast Notice</button>
           <button class="btn btn-secondary" id="projectCodeBtn" style="font-size: 11px; padding: 6px 12px;">Project Access Code</button>
           <button class="btn btn-primary" id="refreshMonitorBtn" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
@@ -349,52 +351,44 @@
     </div>
   </div>
 
-  <!-- Modal: Create Assignment -->
+  <!-- Modal: Create Assignment with Multi-Question & Multi-Testcase Support -->
   <div class="modal" id="newAssignmentModal">
-    <div class="modal-box" style="max-width: 680px;">
-      <h3>Author New Problem</h3>
-      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 18px;">Visible test suites execute on kiosk; hidden test suites grade on server.</p>
+    <div class="modal-box" style="max-width: 860px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3 style="margin: 0; font-size: 17px; font-weight: 700;">Author Assessment</h3>
+        <button class="btn btn-secondary" id="closeAssignModalBtn" style="padding: 3px 8px;">✕</button>
+      </div>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 16px;">Create single or multi-question exams. Visible test suites execute on kiosk; hidden test suites grade on server.</p>
       
-      <div class="form-group">
-        <label>Problem Title</label>
-        <input type="text" id="modalAssignTitle" placeholder="e.g. Reverse Linked List" />
-      </div>
-
-      <div class="form-group">
-        <label>Problem Statement</label>
-        <textarea id="modalAssignStatement" rows="4" placeholder="Describe requirements, inputs, outputs, and constraints..."></textarea>
-      </div>
-
-      <div class="grid-2">
-        <div class="form-group">
-          <label>Languages Permitted</label>
-          <input type="text" id="modalAssignLangs" value="python,cpp,java" />
+      <div style="overflow-y: auto; flex: 1; padding-right: 6px;" id="assignmentModalScrollBody">
+        <div class="grid-2" style="margin-bottom: 14px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Exam / Assessment Title</label>
+            <input type="text" id="modalAssignTitle" placeholder="e.g. Data Structures Midterm Examination" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Languages Permitted</label>
+            <input type="text" id="modalAssignLangs" value="python,cpp,java" />
+          </div>
         </div>
-        <div class="form-group">
-          <label>Starter Code (Optional)</label>
-          <textarea id="modalAssignStarter" rows="2" placeholder="def solution():&#10;    pass" style="font-family: var(--font-mono); font-size: 12px;"></textarea>
-        </div>
-      </div>
 
-      <div class="form-group">
-        <label style="color: var(--text-tertiary);">Visible Test Cases (Public to student)</label>
-        <div class="grid-2">
-          <input type="text" id="modalVisInput" placeholder="Input (e.g. 5)" style="font-family: var(--font-mono); font-size: 12px;" />
-          <input type="text" id="modalVisOutput" placeholder="Expected Output (e.g. 25)" style="font-family: var(--font-mono); font-size: 12px;" />
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 18px 0 12px; border-top: 1px solid var(--border); padding-top: 14px;">
+          <div>
+            <strong style="font-size: 14px; font-weight: 700; color: var(--text);">Exam Questions (<span id="questionsCountLabel">1</span>)</strong>
+            <span style="font-size: 12px; color: var(--text-muted); margin-left: 8px;">Add multiple questions for students to solve in tabs.</span>
+          </div>
+          <button type="button" class="btn btn-secondary" id="addAnotherQuestionBtn" style="font-size: 11px; padding: 4px 10px;">+ Add Question</button>
+        </div>
+
+        <!-- Dynamic Questions List Container -->
+        <div id="modalQuestionsListContainer" style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Dynamically populated question cards -->
         </div>
       </div>
 
-      <div class="form-group">
-        <label style="color: var(--text-tertiary);">Hidden Test Cases (Server-side evaluation only)</label>
-        <div class="grid-2">
-          <input type="text" id="modalHidInput" placeholder="Hidden Input (e.g. 100)" style="font-family: var(--font-mono); font-size: 12px;" />
-          <input type="text" id="modalHidOutput" placeholder="Expected Output (e.g. 10000)" style="font-family: var(--font-mono); font-size: 12px;" />
-        </div>
-      </div>
-
-      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
-        <button class="btn btn-secondary" id="closeAssignModalBtn">Cancel</button>
-        <button class="btn btn-primary" id="saveAssignmentConfirmBtn">Save Assignment</button>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+        <button class="btn btn-secondary" id="cancelAssignModalBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveAssignmentConfirmBtn">Save Assessment</button>
       </div>
     </div>
   </div>
@@ -566,6 +560,30 @@
         </div>
         <div id="simDiffUnifiedBody" style="display: none; margin-top: 10px;">
           <pre id="simDiffUnifiedText" style="padding: 10px; max-height: 160px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--code-box-text); margin: 0; white-space: pre-wrap;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Forensic Timeline Audit Modal -->
+  <div class="modal" id="forensicTimelineModal">
+    <div class="modal-box" style="max-width: 720px; width: 92vw; max-height: 88vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">AUDIT TRAIL</span>
+            <h3 id="timelineStudentTitle" style="font-size: 16px; margin: 0; font-weight: 700;">Student Audit Timeline</h3>
+            <span id="timelineRiskBadge" class="badge" style="background: rgba(34, 197, 94, 0.15); color: #4ade80;">Risk: 0/100</span>
+          </div>
+          <p id="timelineStudentMeta" style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Unified chronological log: keystrokes, blur events, autosaves, and warnings</p>
+        </div>
+        <button class="btn btn-secondary" id="closeTimelineModalBtn" style="padding: 4px 8px;">✕ Close</button>
+      </div>
+
+      <!-- Chronological Event Stream Container -->
+      <div id="forensicTimelineContainer" style="flex: 1; overflow-y: auto; padding-right: 4px; min-height: 260px; max-height: 480px;">
+        <div id="forensicTimelineList" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Dynamically inserted timeline event rows -->
         </div>
       </div>
     </div>

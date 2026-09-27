@@ -259,11 +259,13 @@ async function loadAssignments() {
     state.assignments.forEach((a) => {
       const card = document.createElement('div');
       card.className = 'card';
+      const qCount = (a.questions && a.questions.length > 0) ? a.questions.length : 1;
       card.innerHTML = `
         <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px; color: var(--text);">${escapeHtml(a.title)}</div>
         <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">${escapeHtml(a.problem_statement.substring(0, 110))}...</p>
-        <div style="display: flex; gap: 6px; font-size: 11px; margin-bottom: 6px;">
+        <div style="display: flex; gap: 6px; font-size: 11px; margin-bottom: 6px; flex-wrap: wrap;">
           <span class="badge">${a.language_set}</span>
+          <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">${qCount > 1 ? qCount + ' Questions' : '1 Question'}</span>
           <span class="badge">${(a.visible_test_cases || []).length} Visible</span>
           <span class="badge">${(a.hidden_test_cases || []).length} Hidden</span>
         </div>
@@ -311,6 +313,8 @@ async function loadSessions() {
         <td>
           <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;" onclick="openProjector('${s.access_code}', '${escapeHtml(s.assignment_title)}')">📽️ Project</button>
           <button class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="selectSessionForMonitor(${s.id})">👁️ Monitor</button>
+          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;" onclick="exportSession(${s.id}, 'csv')" title="Export Marksheet CSV">📥 CSV</button>
+          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;" onclick="exportSession(${s.id}, 'json')" title="Export Dossier JSON">📁 JSON</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -450,15 +454,17 @@ function renderTriageRoster() {
       : '';
 
     const playbackBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Interactive keystroke & growth replay">⏪ Playback</button>`;
+    const timelineBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openForensicTimeline(${st.id}, '${escapeHtml(st.student_name)}', '${escapeHtml(st.student_identifier)}', ${risk})" title="Chronological audit timeline">📜 Timeline</button>`;
 
     const actionsHtml = st.is_submitted
-      ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}</div>`
+      ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}${timelineBtn}</div>`
       : `
-        <div style="display: flex; gap: 4px;">
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
           ${playbackBtn}
+          ${timelineBtn}
         </div>
       `;
 
@@ -486,6 +492,7 @@ function renderTriageRoster() {
         <span style="font-size: 10px; font-family: var(--font-mono);">${st.lines_count || 0} lines</span>
         <div style="display: flex; gap: 4px;">
           <button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Replay code">⏪</button>
+          <button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="openForensicTimeline(${st.id}, '${escapeHtml(st.student_name)}', '${escapeHtml(st.student_identifier)}', ${risk})" title="Audit timeline">📜</button>
           ${!st.is_submitted ? `<button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="extendStudentTime(${st.id}, 5)" title="+5m">+5m</button>` : ''}
         </div>
       </div>
@@ -750,56 +757,318 @@ document.getElementById('createSessionConfirmBtn').addEventListener('click', asy
   }
 });
 
-// Modals: New Assignment
+// ==========================================================================
+// Modals: Author Assignment (Multi-Question & Multi-Testcase Support)
+// ==========================================================================
 const newAssignmentModal = document.getElementById('newAssignmentModal');
-document.getElementById('openNewAssignmentModalBtn').addEventListener('click', () => {
-  newAssignmentModal.classList.add('active');
-});
-document.getElementById('closeAssignModalBtn').addEventListener('click', () => {
-  newAssignmentModal.classList.remove('active');
-});
+const cancelAssignModalBtn = document.getElementById('cancelAssignModalBtn');
+const addAnotherQuestionBtn = document.getElementById('addAnotherQuestionBtn');
+const questionsCountLabel = document.getElementById('questionsCountLabel');
+const modalQuestionsListContainer = document.getElementById('modalQuestionsListContainer');
 
-document.getElementById('saveAssignmentConfirmBtn').addEventListener('click', async () => {
-  const title = document.getElementById('modalAssignTitle').value.trim();
-  const statement = document.getElementById('modalAssignStatement').value.trim();
-  const langs = document.getElementById('modalAssignLangs').value.trim();
-  const starter = document.getElementById('modalAssignStarter').value.trim();
+let modalQuestions = [];
 
-  const visIn = document.getElementById('modalVisInput').value.trim();
-  const visOut = document.getElementById('modalVisOutput').value.trim();
-  const hidIn = document.getElementById('modalHidInput').value.trim();
-  const hidOut = document.getElementById('modalHidOutput').value.trim();
+function initDefaultModalQuestions() {
+  modalQuestions = [
+    {
+      id: 'q1',
+      title: 'Question 1',
+      problem_statement: '',
+      starter_code: '',
+      visible_test_cases: [
+        { id: 'v1', input: '', expected_output: '' }
+      ],
+      hidden_test_cases: [
+        { id: 'h1', input: '', expected_output: '' }
+      ]
+    }
+  ];
+}
 
-  if (!title || !statement) {
-    alert('Please provide a title and statement.');
-    return;
-  }
+function syncModalQuestionsFromDOM() {
+  const cards = document.querySelectorAll('.modal-question-card');
+  cards.forEach((card, qIdx) => {
+    if (!modalQuestions[qIdx]) return;
+    const titleInput = card.querySelector('.q-title-input');
+    const stmtInput = card.querySelector('.q-stmt-input');
+    const starterInput = card.querySelector('.q-starter-input');
 
-  const payload = {
-    title: title,
-    problem_statement: statement,
-    starter_code: starter || '',
-    language_set: langs || 'python,cpp,java',
-    visible_test_cases: visIn ? [{ id: 'v1', input: visIn, expected_output: visOut }] : [],
-    hidden_test_cases: hidIn ? [{ id: 'h1', input: hidIn, expected_output: hidOut }] : [],
-  };
+    if (titleInput) modalQuestions[qIdx].title = titleInput.value;
+    if (stmtInput) modalQuestions[qIdx].problem_statement = stmtInput.value;
+    if (starterInput) modalQuestions[qIdx].starter_code = starterInput.value;
 
-  try {
-    const res = await fetch('/api/assignments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${state.token}`,
-      },
-      body: JSON.stringify(payload),
+    // Visible tests
+    const visRows = card.querySelectorAll('.vis-test-row');
+    const visTests = [];
+    visRows.forEach((row, tIdx) => {
+      const inp = row.querySelector('.test-input')?.value || '';
+      const out = row.querySelector('.test-output')?.value || '';
+      visTests.push({ id: `v${tIdx + 1}`, input: inp, expected_output: out });
     });
-    if (!res.ok) throw new Error('Failed to save assignment');
-    newAssignmentModal.classList.remove('active');
-    loadAssignments();
-  } catch (err) {
-    alert(err.message);
+    modalQuestions[qIdx].visible_test_cases = visTests;
+
+    // Hidden tests
+    const hidRows = card.querySelectorAll('.hid-test-row');
+    const hidTests = [];
+    hidRows.forEach((row, tIdx) => {
+      const inp = row.querySelector('.test-input')?.value || '';
+      const out = row.querySelector('.test-output')?.value || '';
+      hidTests.push({ id: `h${tIdx + 1}`, input: inp, expected_output: out });
+    });
+    modalQuestions[qIdx].hidden_test_cases = hidTests;
+  });
+}
+
+function renderModalQuestions() {
+  if (!modalQuestionsListContainer) return;
+  modalQuestionsListContainer.innerHTML = '';
+  if (questionsCountLabel) questionsCountLabel.innerText = modalQuestions.length;
+
+  modalQuestions.forEach((q, qIdx) => {
+    const card = document.createElement('div');
+    card.className = 'card modal-question-card';
+    card.style.background = 'var(--bg-surface)';
+    card.style.border = '1px solid var(--border-light)';
+    card.style.padding = '16px';
+    card.style.borderRadius = '8px';
+    card.style.marginBottom = '8px';
+
+    const canDelete = modalQuestions.length > 1;
+
+    let visTestsHtml = '';
+    (q.visible_test_cases || []).forEach((tc, tIdx) => {
+      visTestsHtml += `
+        <div class="vis-test-row" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Visible Test Case #${tIdx + 1}</span>
+            <button type="button" class="btn btn-secondary" style="padding: 1px 6px; font-size: 10px; color: var(--danger);" onclick="removeModalTestCase(${qIdx}, 'visible', ${tIdx})">✕ Remove</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 10px; color: var(--text-tertiary); display: block; margin-bottom: 3px;">Input (stdin)</label>
+              <textarea class="test-input" rows="2" style="font-family: var(--font-mono); font-size: 11px; width: 100%;" placeholder="e.g. 5&#10;1 2 3 4 5">${escapeHtml(tc.input || '')}</textarea>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-tertiary); display: block; margin-bottom: 3px;">Expected Output (stdout)</label>
+              <textarea class="test-output" rows="2" style="font-family: var(--font-mono); font-size: 11px; width: 100%;" placeholder="e.g. 5 4 3 2 1">${escapeHtml(tc.expected_output || '')}</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    let hidTestsHtml = '';
+    (q.hidden_test_cases || []).forEach((tc, tIdx) => {
+      hidTestsHtml += `
+        <div class="hid-test-row" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Hidden Test Case #${tIdx + 1}</span>
+            <button type="button" class="btn btn-secondary" style="padding: 1px 6px; font-size: 10px; color: var(--danger);" onclick="removeModalTestCase(${qIdx}, 'hidden', ${tIdx})">✕ Remove</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 10px; color: var(--text-tertiary); display: block; margin-bottom: 3px;">Input (stdin)</label>
+              <textarea class="test-input" rows="2" style="font-family: var(--font-mono); font-size: 11px; width: 100%;" placeholder="e.g. 100&#10;...">${escapeHtml(tc.input || '')}</textarea>
+            </div>
+            <div>
+              <label style="font-size: 10px; color: var(--text-tertiary); display: block; margin-bottom: 3px;">Expected Output (stdout)</label>
+              <textarea class="test-output" rows="2" style="font-family: var(--font-mono); font-size: 11px; width: 100%;" placeholder="e.g. expected stdout">${escapeHtml(tc.expected_output || '')}</textarea>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+          <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-weight: 700; font-size: 11px;">Q${qIdx + 1}</span>
+          <input type="text" class="q-title-input" value="${escapeHtml(q.title || `Question ${qIdx + 1}`)}" placeholder="Question Title (e.g. Palindrome Check)" style="font-weight: 600; font-size: 13px; flex: 1; max-width: 380px; padding: 4px 8px;" />
+        </div>
+        ${canDelete ? `<button type="button" class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px; color: var(--danger);" onclick="removeModalQuestion(${qIdx})">✕ Delete Question</button>` : ''}
+      </div>
+
+      <div class="form-group" style="margin-bottom: 10px;">
+        <label style="font-size: 11.5px; font-weight: 600;">Problem Statement & Specifications</label>
+        <textarea class="q-stmt-input" rows="3" placeholder="Enter problem statement, input/output formats, constraints..." style="font-size: 12px;">${escapeHtml(q.problem_statement || '')}</textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label style="font-size: 11.5px; font-weight: 600;">Starter Code (Optional)</label>
+        <textarea class="q-starter-input" rows="3" style="font-family: var(--font-mono); font-size: 11px;" placeholder="# Initial code loaded in student editor&#10;def solve():&#10;    pass">${escapeHtml(q.starter_code || '')}</textarea>
+      </div>
+
+      <!-- Test Cases Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; border-top: 1px solid var(--border); padding-top: 10px;">
+        <!-- Visible Tests Column -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <strong style="font-size: 11.5px; color: var(--text);">Visible Test Cases (${(q.visible_test_cases || []).length})</strong>
+              <div style="font-size: 10px; color: var(--text-tertiary);">Runs locally on kiosk when student tests code</div>
+            </div>
+            <button type="button" class="btn btn-secondary" style="font-size: 10px; padding: 2px 7px;" onclick="addModalTestCase(${qIdx}, 'visible')">+ Add Test</button>
+          </div>
+          <div class="vis-tests-container">${visTestsHtml || '<div style="color: var(--text-disabled); font-size: 11px; font-style: italic; padding: 8px 0;">No visible test cases yet.</div>'}</div>
+        </div>
+
+        <!-- Hidden Tests Column -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <strong style="font-size: 11.5px; color: var(--text);">Hidden Test Cases (${(q.hidden_test_cases || []).length})</strong>
+              <div style="font-size: 10px; color: var(--text-tertiary);">Never sent to kiosk; server evaluates on submission</div>
+            </div>
+            <button type="button" class="btn btn-secondary" style="font-size: 10px; padding: 2px 7px;" onclick="addModalTestCase(${qIdx}, 'hidden')">+ Add Test</button>
+          </div>
+          <div class="hid-tests-container">${hidTestsHtml || '<div style="color: var(--text-disabled); font-size: 11px; font-style: italic; padding: 8px 0;">No hidden test cases yet.</div>'}</div>
+        </div>
+      </div>
+    `;
+
+    modalQuestionsListContainer.appendChild(card);
+  });
+}
+
+window.addModalTestCase = function(qIdx, type) {
+  syncModalQuestionsFromDOM();
+  if (!modalQuestions[qIdx]) return;
+  if (type === 'visible') {
+    modalQuestions[qIdx].visible_test_cases = modalQuestions[qIdx].visible_test_cases || [];
+    modalQuestions[qIdx].visible_test_cases.push({
+      id: `v${modalQuestions[qIdx].visible_test_cases.length + 1}`,
+      input: '',
+      expected_output: ''
+    });
+  } else {
+    modalQuestions[qIdx].hidden_test_cases = modalQuestions[qIdx].hidden_test_cases || [];
+    modalQuestions[qIdx].hidden_test_cases.push({
+      id: `h${modalQuestions[qIdx].hidden_test_cases.length + 1}`,
+      input: '',
+      expected_output: ''
+    });
   }
-});
+  renderModalQuestions();
+};
+
+window.removeModalTestCase = function(qIdx, type, tIdx) {
+  syncModalQuestionsFromDOM();
+  if (!modalQuestions[qIdx]) return;
+  if (type === 'visible' && modalQuestions[qIdx].visible_test_cases) {
+    modalQuestions[qIdx].visible_test_cases.splice(tIdx, 1);
+  } else if (type === 'hidden' && modalQuestions[qIdx].hidden_test_cases) {
+    modalQuestions[qIdx].hidden_test_cases.splice(tIdx, 1);
+  }
+  renderModalQuestions();
+};
+
+window.removeModalQuestion = function(qIdx) {
+  syncModalQuestionsFromDOM();
+  if (modalQuestions.length > 1) {
+    modalQuestions.splice(qIdx, 1);
+    renderModalQuestions();
+  }
+};
+
+if (addAnotherQuestionBtn) {
+  addAnotherQuestionBtn.addEventListener('click', () => {
+    syncModalQuestionsFromDOM();
+    const nextNum = modalQuestions.length + 1;
+    modalQuestions.push({
+      id: `q${nextNum}`,
+      title: `Question ${nextNum}`,
+      problem_statement: '',
+      starter_code: '',
+      visible_test_cases: [{ id: 'v1', input: '', expected_output: '' }],
+      hidden_test_cases: [{ id: 'h1', input: '', expected_output: '' }]
+    });
+    renderModalQuestions();
+  });
+}
+
+const openNewAssignmentModalBtn = document.getElementById('openNewAssignmentModalBtn');
+if (openNewAssignmentModalBtn) {
+  openNewAssignmentModalBtn.addEventListener('click', () => {
+    document.getElementById('modalAssignTitle').value = '';
+    document.getElementById('modalAssignLangs').value = 'python,cpp,java';
+    initDefaultModalQuestions();
+    renderModalQuestions();
+    newAssignmentModal.classList.add('active');
+  });
+}
+
+const closeAssignModalBtn = document.getElementById('closeAssignModalBtn');
+if (closeAssignModalBtn) {
+  closeAssignModalBtn.addEventListener('click', () => {
+    newAssignmentModal.classList.remove('active');
+  });
+}
+
+if (cancelAssignModalBtn) {
+  cancelAssignModalBtn.addEventListener('click', () => {
+    newAssignmentModal.classList.remove('active');
+  });
+}
+
+const saveAssignmentConfirmBtn = document.getElementById('saveAssignmentConfirmBtn');
+if (saveAssignmentConfirmBtn) {
+  saveAssignmentConfirmBtn.addEventListener('click', async () => {
+    syncModalQuestionsFromDOM();
+    const title = document.getElementById('modalAssignTitle').value.trim();
+    const langs = document.getElementById('modalAssignLangs').value.trim() || 'python,cpp,java';
+
+    if (!title) {
+      alert('Please enter an Assessment Title.');
+      return;
+    }
+
+    const hasStmt = modalQuestions.some(q => q.problem_statement && q.problem_statement.trim().length > 0);
+    if (!hasStmt) {
+      alert('Please provide a problem statement for at least one question.');
+      return;
+    }
+
+    // Clean questions
+    const cleanQuestions = modalQuestions.map((q, idx) => ({
+      id: q.id || `q${idx + 1}`,
+      title: q.title?.trim() || `Question ${idx + 1}`,
+      problem_statement: q.problem_statement?.trim() || '',
+      starter_code: q.starter_code || '',
+      visible_test_cases: (q.visible_test_cases || []).filter(t => (t.input && t.input.trim()) || (t.expected_output && t.expected_output.trim())),
+      hidden_test_cases: (q.hidden_test_cases || []).filter(t => (t.input && t.input.trim()) || (t.expected_output && t.expected_output.trim()))
+    }));
+
+    const firstQ = cleanQuestions[0];
+    const payload = {
+      title: title,
+      language_set: langs,
+      problem_statement: firstQ.problem_statement,
+      starter_code: firstQ.starter_code,
+      visible_test_cases: firstQ.visible_test_cases,
+      hidden_test_cases: firstQ.hidden_test_cases,
+      questions: cleanQuestions
+    };
+
+    try {
+      const res = await fetch('/api/assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to save assessment');
+      }
+      newAssignmentModal.classList.remove('active');
+      loadAssignments();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
 
 document.getElementById('refreshMonitorBtn').addEventListener('click', refreshMonitorView);
 
@@ -1306,6 +1575,160 @@ if (simDiffUnifiedToggle) {
       body.style.display = 'none';
       if (label) label.innerText = 'Toggle Raw Diff ▾';
     }
+  });
+}
+
+// ==========================================================================
+// University Marksheet (CSV) & Full Dossier (JSON) Export Handlers
+// ==========================================================================
+window.exportSession = async function(sessionId, format) {
+  const sessId = sessionId || state.selectedSessionId;
+  if (!sessId) {
+    alert('Please select an active session first.');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/sessions/${sessId}/export?format=${format}`, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to export session dossier');
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = format === 'csv' ? `marksheet_session_${sessId}.csv` : `dossier_session_${sessId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Export error: ' + err.message);
+  }
+};
+
+const exportMarksheetBtn = document.getElementById('exportMarksheetBtn');
+if (exportMarksheetBtn) {
+  exportMarksheetBtn.addEventListener('click', () => {
+    window.exportSession(state.selectedSessionId, 'csv');
+  });
+}
+
+const exportDossierBtn = document.getElementById('exportDossierBtn');
+if (exportDossierBtn) {
+  exportDossierBtn.addEventListener('click', () => {
+    window.exportSession(state.selectedSessionId, 'json');
+  });
+}
+
+// ==========================================================================
+// Forensic Timeline Modal Handlers
+// ==========================================================================
+window.openForensicTimeline = async function(studentId, studentName, studentIdentifier, riskScore) {
+  if (!state.selectedSessionId || !state.token) {
+    alert('Please select an active session first.');
+    return;
+  }
+
+  const modal = document.getElementById('forensicTimelineModal');
+  const titleEl = document.getElementById('timelineStudentTitle');
+  const badgeEl = document.getElementById('timelineRiskBadge');
+  const metaEl = document.getElementById('timelineStudentMeta');
+  const listEl = document.getElementById('forensicTimelineList');
+
+  if (titleEl) titleEl.innerText = `${studentName} (${studentIdentifier})`;
+  if (metaEl) metaEl.innerText = `Full chronological forensic audit trail for Student ID #${studentId}`;
+
+  const score = riskScore != null ? Number(riskScore) : 0;
+  if (badgeEl) {
+    badgeEl.innerText = `Risk: ${score}/100`;
+    if (score >= 50) {
+      badgeEl.style.background = 'rgba(244, 63, 94, 0.15)';
+      badgeEl.style.color = '#fda4af';
+    } else if (score >= 20) {
+      badgeEl.style.background = 'rgba(245, 158, 11, 0.15)';
+      badgeEl.style.color = '#fbbf24';
+    } else {
+      badgeEl.style.background = 'rgba(34, 197, 94, 0.15)';
+      badgeEl.style.color = '#4ade80';
+    }
+  }
+
+  if (listEl) {
+    listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 28px;">Loading forensic audit timeline...</div>';
+  }
+  if (modal) modal.classList.add('active');
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/timeline`, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to retrieve timeline');
+    }
+    const data = await res.json();
+    const events = data.events || [];
+
+    if (events.length === 0) {
+      if (listEl) listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 28px;">No audit events recorded for this terminal.</div>';
+      return;
+    }
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      events.forEach((ev) => {
+        const item = document.createElement('div');
+        let borderColor = 'var(--border)';
+        let badgeBg = 'var(--bg-subtle)';
+        let badgeColor = 'var(--text-muted)';
+
+        if (ev.severity === 'critical') {
+          borderColor = 'rgba(244, 63, 94, 0.4)';
+          badgeBg = 'rgba(244, 63, 94, 0.15)';
+          badgeColor = '#fda4af';
+        } else if (ev.severity === 'warning' || ev.severity === 'high') {
+          borderColor = 'rgba(245, 158, 11, 0.4)';
+          badgeBg = 'rgba(245, 158, 11, 0.15)';
+          badgeColor = '#fbbf24';
+        } else if (ev.severity === 'success') {
+          borderColor = 'rgba(16, 185, 129, 0.4)';
+          badgeBg = 'rgba(16, 185, 129, 0.15)';
+          badgeColor = '#34d399';
+        } else if (ev.severity === 'info') {
+          borderColor = 'rgba(56, 189, 248, 0.4)';
+          badgeBg = 'rgba(56, 189, 248, 0.15)';
+          badgeColor = '#38bdf8';
+        }
+
+        item.style.cssText = `background: var(--bg-surface); border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px;`;
+
+        const timeStr = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '--:--:--';
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background: ${badgeBg}; color: ${badgeColor}; font-size: 10px; font-weight: 700;">${escapeHtml(ev.badge || ev.type)}</span>
+              <strong style="font-size: 12.5px; color: var(--text);">${escapeHtml(ev.title)}</strong>
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);">${timeStr}</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">${escapeHtml(ev.description)}</div>
+        `;
+        listEl.appendChild(item);
+      });
+    }
+  } catch (err) {
+    if (listEl) listEl.innerHTML = `<div style="color: var(--danger); font-size: 12px; text-align: center; padding: 24px;">${escapeHtml(err.message)}</div>`;
+  }
+};
+
+const closeTimelineModalBtn = document.getElementById('closeTimelineModalBtn');
+if (closeTimelineModalBtn) {
+  closeTimelineModalBtn.addEventListener('click', () => {
+    const modal = document.getElementById('forensicTimelineModal');
+    if (modal) modal.classList.remove('active');
   });
 }
 

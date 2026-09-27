@@ -135,3 +135,57 @@ ipcMain.handle('set-fullscreen', () => {
   return false;
 });
 
+// IPC Handler: UDP LAN Auto-Discovery
+const dgram = require('dgram');
+ipcMain.handle('discover-server', () => {
+  return new Promise((resolve) => {
+    try {
+      const client = dgram.createSocket('udp4');
+      let resolved = false;
+
+      client.on('error', () => {
+        try { client.close(); } catch (e) {}
+        if (!resolved) { resolved = true; resolve(null); }
+      });
+
+      client.on('message', (msg) => {
+        try {
+          const payload = JSON.parse(msg.toString());
+          if (payload.type === 'TIDE_SERVER_ANNOUNCE' && !resolved) {
+            resolved = true;
+            try { client.close(); } catch (e) {}
+            resolve(payload);
+          }
+        } catch (e) {}
+      });
+
+      client.bind(() => {
+        try {
+          client.setBroadcast(true);
+          const packet = Buffer.from('TIDE_DISCOVER_SERVER');
+          client.send(packet, 0, packet.length, 8001, '255.255.255.255', (err) => {
+            if (err && !resolved) {
+              try { client.close(); } catch (e) {}
+              resolved = true;
+              resolve(null);
+            }
+          });
+        } catch (e) {
+          if (!resolved) { resolved = true; resolve(null); }
+        }
+      });
+
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          try { client.close(); } catch (e) {}
+          resolve(null);
+        }
+      }, 2500);
+    } catch (err) {
+      resolve(null);
+    }
+  });
+});
+
+

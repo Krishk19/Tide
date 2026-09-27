@@ -30,6 +30,7 @@ class Assignment(Base):
     hidden_test_cases = Column(JSON, nullable=False, default=list)  # Server-side only!
     language_set = Column(String(100), nullable=False, default="cpp,python,java")
     created_at = Column(DateTime, default=utc_now, nullable=False)
+    questions = Column(JSON, nullable=True, default=list)
 
     teacher = relationship("Teacher", back_populates="assignments")
     sessions = relationship("Session", back_populates="assignment")

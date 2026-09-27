@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exitApp: () => ipcRenderer.invoke('app-exit'),
   isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
   setFullScreen: () => ipcRenderer.invoke('set-fullscreen'),
+  discoverServer: () => ipcRenderer.invoke('discover-server'),
 });

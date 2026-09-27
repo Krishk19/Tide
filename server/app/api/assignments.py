@@ -17,14 +17,40 @@ def create_assignment(
     Creates an assignment authored days ahead.
     Strictly scoped to current_teacher.id.
     """
+    questions = req.questions or []
+    prob_stmt = req.problem_statement
+    starter = req.starter_code
+    vis_tests = req.visible_test_cases
+    hid_tests = req.hidden_test_cases
+
+    if questions:
+        if not prob_stmt:
+            prob_stmt = questions[0].get("problem_statement", "")
+        if not starter:
+            starter = questions[0].get("starter_code", "")
+        if not vis_tests:
+            vis_tests = questions[0].get("visible_test_cases", [])
+        if not hid_tests:
+            hid_tests = questions[0].get("hidden_test_cases", [])
+    elif prob_stmt:
+        questions = [{
+            "id": "q1",
+            "title": req.title,
+            "problem_statement": prob_stmt,
+            "starter_code": starter or "",
+            "visible_test_cases": vis_tests or [],
+            "hidden_test_cases": hid_tests or []
+        }]
+
     assignment = Assignment(
         teacher_id=current_teacher.id,
         title=req.title,
-        problem_statement=req.problem_statement,
-        starter_code=req.starter_code,
-        visible_test_cases=req.visible_test_cases,
-        hidden_test_cases=req.hidden_test_cases,
-        language_set=req.language_set
+        problem_statement=prob_stmt,
+        starter_code=starter,
+        visible_test_cases=vis_tests,
+        hidden_test_cases=hid_tests,
+        language_set=req.language_set,
+        questions=questions
     )
     db.add(assignment)
     db.commit()

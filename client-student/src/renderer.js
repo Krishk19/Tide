@@ -1,4 +1,3 @@
-// Tide Student Kiosk Renderer Process
 let state = {
   serverUrl: 'http://localhost:8000',
   studentSessionId: null,
@@ -11,6 +10,9 @@ let state = {
   ws: null,
   currentLanguage: 'python',
   isSubmitted: false,
+  questions: [],
+  activeQuestionId: null,
+  codes: {},
 };
 
 // Auto-detect server URL from current location or localStorage
@@ -18,6 +20,23 @@ if (window.location.protocol.startsWith('http')) {
   state.serverUrl = window.location.origin;
 } else if (localStorage.getItem('tide_server_url')) {
   state.serverUrl = localStorage.getItem('tide_server_url');
+}
+
+// Background UDP LAN Auto-Discovery if running in Electron
+if (window.electronAPI && window.electronAPI.discoverServer) {
+  window.electronAPI.discoverServer().then((res) => {
+    if (res && res.server_url) {
+      console.log('LAN Auto-Discovery found server:', res);
+      state.serverUrl = res.server_url;
+      try { localStorage.setItem('tide_server_url', res.server_url); } catch (e) {}
+      const hostInput = document.getElementById('serverHostInput');
+      if (hostInput) hostInput.value = res.server_url;
+      const pinStatusHint = document.getElementById('pinStatusHint');
+      if (pinStatusHint) {
+        pinStatusHint.innerHTML = `<span style="color: var(--status-emerald); font-weight: 600;">✓ Connected to Lab Server (${res.server_ip})</span>`;
+      }
+    }
+  }).catch(() => {});
 }
 
 // Initialize theme immediately on script evaluation
@@ -563,13 +582,104 @@ function loadExamEnvironment(data) {
   headerSubmitBtn.style.display = 'block';
 
   const assignment = data.assignment;
-  document.getElementById('problemTitle').innerText = assignment.title;
-  document.getElementById('problemStatement').innerText = assignment.problem_statement;
+  state.questions = assignment.questions && assignment.questions.length > 0 ? assignment.questions : [{
+    id: 'q1',
+    title: assignment.title,
+    problem_statement: assignment.problem_statement,
+    starter_code: assignment.starter_code || '',
+    visible_test_cases: assignment.visible_test_cases || []
+  }];
+
+  state.codes = data.saved_codes || {};
+  if (Object.keys(state.codes).length === 0) {
+    state.questions.forEach((q, idx) => {
+      state.codes[q.id] = idx === 0 ? (data.saved_code || q.starter_code || '') : (q.starter_code || '');
+    });
+  }
+
+  // Setup question tabs
+  renderQuestionTabs();
+
+  if (data.saved_language) {
+    document.getElementById('languageSelect').value = data.saved_language;
+    state.currentLanguage = data.saved_language;
+  }
+
+  // Switch to first question
+  switchQuestion(state.questions[0].id, false);
+
+  // Setup Autosave, Tab key indentation, and Paste Listeners on Textarea
+  const textarea = document.getElementById('codeEditorTextarea');
+  if (!textarea._hasListeners) {
+    textarea._hasListeners = true;
+    textarea.addEventListener('input', triggerAutosave);
+    textarea.addEventListener('paste', handleEditorPaste);
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+        triggerAutosave();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        const runBtn = document.getElementById('runTestsBtn');
+        if (runBtn && !runBtn.disabled) runBtn.click();
+      }
+    });
+  }
+}
+
+function renderQuestionTabs() {
+  const tabsBar = document.getElementById('questionTabsBar');
+  if (!tabsBar) return;
+  tabsBar.innerHTML = '';
+
+  if (state.questions.length <= 1) {
+    const singleTab = document.createElement('div');
+    singleTab.className = 'panel-tab active';
+    singleTab.innerText = 'Problem Specification';
+    tabsBar.appendChild(singleTab);
+    return;
+  }
+
+  state.questions.forEach((q, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `panel-tab question-tab-btn ${q.id === state.activeQuestionId ? 'active' : ''}`;
+    btn.dataset.qid = q.id;
+    btn.style.cursor = 'pointer';
+    btn.style.background = 'transparent';
+    btn.style.border = 'none';
+    btn.innerText = `Q${idx + 1}: ${q.title || `Problem ${idx + 1}`}`;
+    btn.addEventListener('click', () => switchQuestion(q.id, true));
+    tabsBar.appendChild(btn);
+  });
+}
+
+function switchQuestion(qid, saveCurrent = true) {
+  const textarea = document.getElementById('codeEditorTextarea');
+  if (saveCurrent && state.activeQuestionId && textarea) {
+    state.codes[state.activeQuestionId] = textarea.value;
+    triggerAutosave();
+  }
+
+  state.activeQuestionId = qid;
+  const q = state.questions.find(x => x.id === qid) || state.questions[0];
+
+  // Update tabs active state
+  document.querySelectorAll('.question-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.qid === qid);
+  });
+
+  document.getElementById('problemTitle').innerText = q.title;
+  document.getElementById('problemStatement').innerText = q.problem_statement;
 
   // Render Visible Test Cases
   const container = document.getElementById('visibleTestCasesContainer');
   container.innerHTML = '';
-  (assignment.visible_test_cases || []).forEach((tc, idx) => {
+  (q.visible_test_cases || []).forEach((tc, idx) => {
     const card = document.createElement('div');
     card.className = 'test-case-card';
     card.innerHTML = `
@@ -582,31 +692,14 @@ function loadExamEnvironment(data) {
     container.appendChild(card);
   });
 
-  // Editor setup
-  const textarea = document.getElementById('codeEditorTextarea');
-  textarea.value = data.saved_code || assignment.starter_code || '';
-  if (data.saved_language) {
-    document.getElementById('languageSelect').value = data.saved_language;
-    state.currentLanguage = data.saved_language;
+  if (textarea) {
+    textarea.value = state.codes[qid] !== undefined ? state.codes[qid] : (q.starter_code || '');
   }
 
-  // Setup Autosave, Tab key indentation, and Paste Listeners on Textarea
-  textarea.addEventListener('input', triggerAutosave);
-  textarea.addEventListener('paste', handleEditorPaste);
-  textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
-      textarea.selectionStart = textarea.selectionEnd = start + 4;
-      triggerAutosave();
-    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      const runBtn = document.getElementById('runTestsBtn');
-      if (runBtn && !runBtn.disabled) runBtn.click();
-    }
-  });
+  if (consoleBody) {
+    consoleTimeBadge.innerText = 'Ready';
+    consoleBody.innerHTML = `<span style="color: var(--text-secondary);">Switched to <strong>${escapeHtml(q.title)}</strong>. Press "Run Tests" to execute against visible test cases.</span>`;
+  }
 }
 
 function escapeHtml(text) {
@@ -638,14 +731,18 @@ function handleEditorPaste(e) {
   });
 }
 
-// Debounced Autosave (3 seconds)
+// Debounced Autosave (2 seconds)
 function triggerAutosave() {
   autosaveText.innerText = 'Typing...';
   if (state.autosaveTimer) clearTimeout(state.autosaveTimer);
 
   state.autosaveTimer = setTimeout(async () => {
-    const code = document.getElementById('codeEditorTextarea').value;
+    const textarea = document.getElementById('codeEditorTextarea');
+    const code = textarea ? textarea.value : '';
     const lang = document.getElementById('languageSelect').value;
+    if (state.activeQuestionId) {
+      state.codes[state.activeQuestionId] = code;
+    }
     try {
       const res = await fetch(`${state.serverUrl}/api/exam/autosave`, {
         method: 'POST',
@@ -653,6 +750,8 @@ function triggerAutosave() {
         body: JSON.stringify({
           student_session_id: state.studentSessionId,
           code: code,
+          question_id: state.activeQuestionId,
+          codes: state.codes,
           language: lang,
         }),
       });
@@ -664,7 +763,7 @@ function triggerAutosave() {
     } catch (err) {
       autosaveText.innerText = 'Autosave failed (retrying)';
     }
-  }, 3000);
+  }, 2000);
 }
 
 // Run Visible Tests Button
@@ -680,6 +779,9 @@ runTestsBtn.addEventListener('click', async () => {
 
   const code = document.getElementById('codeEditorTextarea').value;
   const lang = document.getElementById('languageSelect').value;
+  if (state.activeQuestionId) {
+    state.codes[state.activeQuestionId] = code;
+  }
 
   try {
     const res = await fetch(`${state.serverUrl}/api/exam/run`, {
@@ -689,6 +791,7 @@ runTestsBtn.addEventListener('click', async () => {
         student_session_id: state.studentSessionId,
         code: code,
         language: lang,
+        question_id: state.activeQuestionId,
       }),
     });
 
@@ -746,6 +849,9 @@ confirmSubmitBtn.addEventListener('click', async () => {
 
   const code = document.getElementById('codeEditorTextarea').value;
   const lang = document.getElementById('languageSelect').value;
+  if (state.activeQuestionId) {
+    state.codes[state.activeQuestionId] = code;
+  }
 
   try {
     const res = await fetch(`${state.serverUrl}/api/exam/submit`, {
@@ -755,6 +861,7 @@ confirmSubmitBtn.addEventListener('click', async () => {
         student_session_id: state.studentSessionId,
         code: code,
         language: lang,
+        codes: state.codes,
       }),
     });
 

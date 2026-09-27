@@ -12,6 +12,8 @@ from app.api.telemetry import router as telemetry_router
 from app.api.classroom import router as classroom_router
 from app.api.dashboard import router as dashboard_router
 from app.api.similarity import router as similarity_router
+from app.api.reporting import router as reporting_router
+from app.services.discovery import discovery_server
 
 from sqlalchemy import text
 
@@ -56,6 +58,11 @@ def upgrade_schema():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE assignments ADD COLUMN questions JSON"))
+            conn.commit()
+        except Exception:
+            pass
 
 upgrade_schema()
 
@@ -82,7 +89,22 @@ app.include_router(exam_router, prefix="/api")
 app.include_router(classroom_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(similarity_router, prefix="/api")
+app.include_router(reporting_router, prefix="/api")
 app.include_router(telemetry_router)
+
+@app.on_event("startup")
+def on_startup():
+    try:
+        discovery_server.start()
+    except Exception:
+        pass
+
+@app.on_event("shutdown")
+def on_shutdown():
+    try:
+        discovery_server.stop()
+    except Exception:
+        pass
 
 # Mount Static UI Directories
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
