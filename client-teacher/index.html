@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tide Instructor Command Center</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2.2">
 </head>
 <body>
   <!-- Instructor Header -->
@@ -22,10 +22,18 @@
     </nav>
 
     <div class="user-controls">
-      <!-- Dual-Theme Switcher -->
-      <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Light / Dark Mode">
-        <span id="themeToggleText">☀ Light</span>
-      </button>
+      <!-- Prominent Segmented Dual-Theme Switcher -->
+      <div class="theme-switch-segmented" title="Switch between Light and Dark interface">
+        <button type="button" class="theme-opt-btn" id="teacherThemeLightBtn" data-theme-val="light">
+          <span>☀</span> Light
+        </button>
+        <button type="button" class="theme-opt-btn active" id="teacherThemeDarkBtn" data-theme-val="dark">
+          <span>☾</span> Dark
+        </button>
+      </div>
+      <!-- Hidden legacy button ID fallback for app.js -->
+      <button id="themeToggleBtn" style="display: none;"></button>
+      <span id="themeToggleText" style="display: none;"></span>
       <div id="teacherProfile" style="display: none; font-size: 12px; color: var(--text-muted);">
         Authenticated: <strong id="teacherNameDisplay" style="color: var(--text); font-weight: 600;">Prof. Sharma</strong>
       </div>
@@ -320,6 +328,75 @@
       <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button class="btn btn-secondary" id="closeWarnModalBtn">Cancel</button>
         <button class="btn btn-primary" id="sendWarnConfirmBtn" style="background: var(--warning); color: #000;">⚠️ Issue Official Warning</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Code Growth Playback Scrubber -->
+  <div class="modal" id="playbackModal">
+    <div class="modal-box" style="max-width: 960px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8;">FORENSIC REPLAY</span>
+            <h3 id="playbackStudentTitle" style="font-size: 16px; margin: 0;">Code Playback Scrubber</h3>
+          </div>
+          <p id="playbackStudentSubtitle" style="color: var(--text-muted); font-size: 12px; margin-top: 4px;">Historical keyframe reconstruction across exam session</p>
+        </div>
+        <button class="btn btn-secondary" id="closePlaybackModalBtn" style="padding: 4px 8px;">✕ Close</button>
+      </div>
+
+      <!-- Forensic Anomaly Callout -->
+      <div id="playbackAnomalyBanner" style="display: none; margin-bottom: 12px; padding: 10px 14px; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 6px; font-size: 12px; color: #fda4af;">
+        <strong>⚠️ Bulk Injection Anomaly:</strong> <span id="playbackAnomalyText"></span>
+      </div>
+
+      <!-- Code Viewer Frame -->
+      <div style="flex: 1; min-height: 280px; max-height: 380px; background: #000; border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">
+          <span id="playbackCodeStats">Lines: 0 • Chars: 0</span>
+          <span id="playbackKeyframeTs">Timestamp: --:--:--</span>
+        </div>
+        <pre id="playbackCodeDisplay" style="flex: 1; padding: 12px 14px; margin: 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; color: #e2e8f0; overflow-y: auto; user-select: text; white-space: pre-wrap; word-break: break-all;"></pre>
+      </div>
+
+      <!-- Scrubber Bar & Markers -->
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">
+          <span id="playbackCurrentTimeLabel">00:00:00 (Keyframe 1 / 1)</span>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f43f5e;"></span> Red = Paste Spike</span>
+            <span style="display: inline-flex; align-items: center; gap: 4px;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#38bdf8;"></span> Cyan = Autosave</span>
+            <span id="playbackTotalTimeLabel">Duration: 00:00:00</span>
+          </div>
+        </div>
+
+        <!-- Timeline Slider -->
+        <input type="range" id="playbackTimelineSlider" min="0" max="0" value="0" style="width: 100%; cursor: pointer;" />
+
+        <!-- Timeline Tick Markers -->
+        <div id="playbackMarkerTrack" style="position: relative; height: 14px; margin-top: 4px;"></div>
+
+        <!-- Playback Controls -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" id="pbFirstBtn" title="First Snapshot" style="font-size: 11px; padding: 5px 10px;">|◀</button>
+            <button class="btn btn-secondary" id="pbPrevBtn" title="Previous Snapshot" style="font-size: 11px; padding: 5px 10px;">◀</button>
+            <button class="btn btn-primary" id="pbPlayToggleBtn" style="font-size: 11px; padding: 5px 16px; min-width: 70px;">▶ Play</button>
+            <button class="btn btn-secondary" id="pbNextBtn" title="Next Snapshot" style="font-size: 11px; padding: 5px 10px;">▶</button>
+            <button class="btn btn-secondary" id="pbLastBtn" title="Final Snapshot" style="font-size: 11px; padding: 5px 10px;">▶|</button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 11px; color: var(--text-muted);">Speed:</label>
+            <select id="playbackSpeedSelect" style="width: auto; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono);">
+              <option value="1">1x Speed</option>
+              <option value="2">2x Speed</option>
+              <option value="5" selected>5x Speed</option>
+              <option value="10">10x Speed</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   </div>

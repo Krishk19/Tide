@@ -209,6 +209,13 @@ async def submit_exam(req: CodeSubmitRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(sub)
 
+    # Record final keyframe snapshot
+    try:
+        from app.services.playback import record_code_snapshot
+        record_code_snapshot(db, student.id, req.code, now)
+    except Exception:
+        pass
+
     # Live notify teacher command center
     try:
         from app.api.telemetry import manager
@@ -259,4 +266,12 @@ def autosave_code(req: AutosaveRequest, db: Session = Depends(get_db)):
         sub.last_autosaved_at = now
 
     db.commit()
+
+    # Record CodeSnapshot keyframe
+    try:
+        from app.services.playback import record_code_snapshot
+        record_code_snapshot(db, req.student_session_id, req.code, now)
+    except Exception:
+        pass
+
     return AutosaveResponse(status="saved", timestamp=now)

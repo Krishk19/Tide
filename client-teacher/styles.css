@@ -5,8 +5,11 @@
    ========================================================================== */
 
 /* Dark Mode Tokens (Default) */
-:root, [data-theme="dark"] {
+:root,
+html[data-theme="dark"],
+body.theme-dark {
   --bg-main: #090a0d;
+  --bg-canvas-pattern: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
   --bg-card: #111216;
   --bg-surface: #16181f;
   --bg-subtle: #191b22;
@@ -42,8 +45,11 @@
 }
 
 /* Light Mode Tokens */
+html[data-theme="light"],
+body.theme-light,
 [data-theme="light"] {
   --bg-main: #f4f5f7;
+  --bg-canvas-pattern: radial-gradient(rgba(15, 23, 42, 0.07) 1px, transparent 1px);
   --bg-card: #ffffff;
   --bg-surface: #fafafa;
   --bg-subtle: #f0f2f5;
@@ -98,6 +104,8 @@
 
 body {
   background-color: var(--bg-main);
+  background-image: var(--bg-canvas-pattern);
+  background-size: 24px 24px;
   color: var(--text);
   font-family: var(--font-ui);
   min-height: 100vh;
@@ -201,7 +209,44 @@ header {
   gap: 12px;
 }
 
-/* Theme Toggle Button */
+/* Segmented Theme Switcher */
+.theme-switch-segmented {
+  display: flex;
+  align-items: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.theme-opt-btn {
+  background: transparent;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.theme-opt-btn:hover {
+  color: var(--text);
+}
+
+.theme-opt-btn.active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Legacy Theme Toggle Button Fallback */
 .theme-toggle-btn {
   background: var(--bg-subtle);
   border: 1px solid var(--border);

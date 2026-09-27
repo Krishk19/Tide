@@ -35,25 +35,99 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Theme Toggle (Light / Dark mode)
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
-  const themeToggleText = document.getElementById('themeToggleText');
+  // Segmented Theme Toggle (Light / Dark mode)
+  const themeLightBtn = document.getElementById('themeLightBtn');
+  const themeDarkBtn = document.getElementById('themeDarkBtn');
+  const legacyToggleBtn = document.getElementById('themeToggleBtn');
   const savedTheme = localStorage.getItem('tide_theme') || 'dark';
   applyTheme(savedTheme);
 
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener('click', () => {
+  if (themeLightBtn) {
+    themeLightBtn.addEventListener('click', () => applyTheme('light'));
+  }
+  if (themeDarkBtn) {
+    themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+  }
+  if (legacyToggleBtn) {
+    legacyToggleBtn.addEventListener('click', () => {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
-      const next = current === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
+      applyTheme(current === 'dark' ? 'light' : 'dark');
     });
   }
 
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
+    document.body.className = 'theme-' + theme;
     localStorage.setItem('tide_theme', theme);
-    if (themeToggleText) {
-      themeToggleText.innerText = theme === 'dark' ? '☀ Light' : '☾ Dark';
+
+    if (themeLightBtn && themeDarkBtn) {
+      if (theme === 'light') {
+        themeLightBtn.classList.add('active');
+        themeDarkBtn.classList.remove('active');
+      } else {
+        themeDarkBtn.classList.add('active');
+        themeLightBtn.classList.remove('active');
+      }
+    }
+  }
+
+  // Interactive 6-Pin Slot Syncer
+  const accessCodeInput = document.getElementById('accessCodeInput');
+  const pinContainer = document.getElementById('pinDisplayContainer');
+  const pinStatusHint = document.getElementById('pinStatusHint');
+
+  if (accessCodeInput) {
+    accessCodeInput.addEventListener('input', updatePinSlots);
+    accessCodeInput.addEventListener('focus', () => updatePinFocus(true));
+    accessCodeInput.addEventListener('blur', () => updatePinFocus(false));
+    if (pinContainer) {
+      pinContainer.addEventListener('click', () => accessCodeInput.focus());
+    }
+  }
+
+  function updatePinSlots() {
+    if (!accessCodeInput) return;
+    const val = accessCodeInput.value.toUpperCase();
+    accessCodeInput.value = val;
+
+    for (let i = 0; i < 6; i++) {
+      const slot = document.getElementById(`pinSlot${i}`);
+      if (!slot) continue;
+      if (i < val.length) {
+        slot.innerText = val[i];
+        slot.classList.add('filled');
+        slot.classList.remove('focused');
+      } else {
+        slot.innerText = '-';
+        slot.classList.remove('filled');
+        if (i === val.length && document.activeElement === accessCodeInput) {
+          slot.classList.add('focused');
+        } else {
+          slot.classList.remove('focused');
+        }
+      }
+    }
+
+    if (pinStatusHint) {
+      if (val.length === 6) {
+        pinStatusHint.innerHTML = '<span style="color: var(--status-emerald); font-weight: 600;">✓ 6-Digit Access Key Format Verified</span>';
+      } else {
+        pinStatusHint.innerText = 'Enter 6-character room access key projected on screen';
+      }
+    }
+  }
+
+  function updatePinFocus(isFocused) {
+    if (!accessCodeInput) return;
+    const len = accessCodeInput.value.length;
+    for (let i = 0; i < 6; i++) {
+      const slot = document.getElementById(`pinSlot${i}`);
+      if (!slot) continue;
+      if (isFocused && i === Math.min(len, 5)) {
+        slot.classList.add('focused');
+      } else if (!slot.classList.contains('filled')) {
+        slot.classList.remove('focused');
+      }
     }
   }
 });

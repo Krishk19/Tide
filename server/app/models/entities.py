@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Index, Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -64,6 +64,7 @@ class StudentInSession(Base):
     session = relationship("Session", back_populates="students")
     submissions = relationship("Submission", back_populates="student_session")
     flags = relationship("Flag", back_populates="student_session")
+    code_snapshots = relationship("CodeSnapshot", back_populates="student_session", cascade="all, delete-orphan", order_by="CodeSnapshot.ts")
 
 
 class Submission(Base):
@@ -98,7 +99,22 @@ class Flag(Base):
     reviewer = relationship("Teacher", foreign_keys=[reviewed_by])
 
 
+class CodeSnapshot(Base):
+    __tablename__ = "code_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_session_id = Column(Integer, ForeignKey("students_in_session.id"), nullable=False, index=True)
+    code = Column(Text, nullable=False)
+    lines_count = Column(Integer, default=0, nullable=False)
+    chars_count = Column(Integer, default=0, nullable=False)
+    is_paste_event = Column(Boolean, default=False, nullable=False)
+    ts = Column(DateTime, default=utc_now, nullable=False, index=True)
+
+    student_session = relationship("StudentInSession", back_populates="code_snapshots")
+
+
 # Indexing
 Index("idx_flags_student_ts", Flag.student_session_id, Flag.ts)
+Index("idx_snapshots_student_ts", CodeSnapshot.student_session_id, CodeSnapshot.ts)
 Index("idx_sessions_teacher", Session.teacher_id)
 Index("idx_assignments_teacher", Assignment.teacher_id)

@@ -373,3 +373,24 @@ async def force_submit_student(
         "passed_tests": passed_total,
         "total_tests": total_tests
     }
+
+
+@router.get("/{session_id}/students/{student_id}/playback")
+def get_playback_history(
+    session_id: int,
+    student_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns full chronological keyframe snapshots and timeline events
+    for the interactive code growth scrubber in the teacher command center.
+    """
+    from app.services.playback import get_student_playback_data
+    return get_student_playback_data(
+        db=db,
+        session_id=session_id,
+        student_id=student_id,
+        teacher_id=current_teacher.id
+    )
+

@@ -20,25 +20,39 @@ if (audioToggleBtn) {
   });
 }
 
-// Theme Toggle (Light / Dark mode)
-const themeToggleBtn = document.getElementById('themeToggleBtn');
-const themeToggleText = document.getElementById('themeToggleText');
+// Segmented Theme Toggle (Light / Dark mode)
+const teacherThemeLightBtn = document.getElementById('teacherThemeLightBtn');
+const teacherThemeDarkBtn = document.getElementById('teacherThemeDarkBtn');
+const legacyTeacherToggleBtn = document.getElementById('themeToggleBtn');
 const savedTheme = localStorage.getItem('tide_theme') || 'dark';
 applyTheme(savedTheme);
 
-if (themeToggleBtn) {
-  themeToggleBtn.addEventListener('click', () => {
+if (teacherThemeLightBtn) {
+  teacherThemeLightBtn.addEventListener('click', () => applyTheme('light'));
+}
+if (teacherThemeDarkBtn) {
+  teacherThemeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+}
+if (legacyTeacherToggleBtn) {
+  legacyTeacherToggleBtn.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
+    applyTheme(current === 'dark' ? 'light' : 'dark');
   });
 }
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
+  document.body.className = 'theme-' + theme;
   localStorage.setItem('tide_theme', theme);
-  if (themeToggleText) {
-    themeToggleText.innerText = theme === 'dark' ? '☀ Light' : '☾ Dark';
+
+  if (teacherThemeLightBtn && teacherThemeDarkBtn) {
+    if (theme === 'light') {
+      teacherThemeLightBtn.classList.add('active');
+      teacherThemeDarkBtn.classList.remove('active');
+    } else {
+      teacherThemeDarkBtn.classList.add('active');
+      teacherThemeLightBtn.classList.remove('active');
+    }
   }
 }
 
@@ -389,13 +403,16 @@ async function loadActiveSessionRoster(sessionId) {
         ? `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #34d399; font-size: 10px; margin-left: 4px;">+${Math.round(st.extra_time_seconds / 60)}m</span>`
         : '';
 
+      const playbackBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Interactive keystroke & growth replay">⏪ Playback</button>`;
+
       const actionsHtml = st.submitted_at
-        ? `<span style="color: var(--text-tertiary); font-size: 11px; font-family: var(--font-mono);">Finalized</span>`
+        ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}</div>`
         : `
           <div style="display: flex; gap: 4px;">
             <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
             <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
             <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
+            ${playbackBtn}
           </div>
         `;
 
@@ -814,6 +831,204 @@ document.getElementById('sendBroadcastConfirmBtn').addEventListener('click', asy
   } catch (err) {
     alert(`Broadcast error: ${err.message}`);
   }
+});
+
+// ==========================================================================
+// Code Playback Forensic Scrubber System
+// ==========================================================================
+const playbackState = {
+  data: null,
+  currentIndex: 0,
+  isPlaying: false,
+  timer: null,
+  speed: 5,
+};
+
+window.openPlaybackModal = async function(studentId, studentName) {
+  if (!state.selectedSessionId || !state.token) return;
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/playback`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to load playback data');
+    }
+    const data = await res.json();
+    playbackState.data = data;
+    playbackState.currentIndex = 0;
+    playbackState.isPlaying = false;
+    if (playbackState.timer) clearInterval(playbackState.timer);
+
+    // Populate modal headers
+    document.getElementById('playbackStudentTitle').innerText = `${data.student_name} (${data.student_identifier})`;
+    const mins = Math.floor(data.total_duration_seconds / 60);
+    const secs = data.total_duration_seconds % 60;
+    document.getElementById('playbackStudentSubtitle').innerText = `${data.assignment_title} • ${data.total_snapshots} Keyframes Recorded • Duration: ${mins}m ${secs}s`;
+
+    // Configure slider
+    const slider = document.getElementById('playbackTimelineSlider');
+    slider.min = 0;
+    slider.max = Math.max(0, data.snapshots.length - 1);
+    slider.value = 0;
+
+    // Render timeline markers
+    renderPlaybackMarkers(data);
+
+    // Render initial keyframe
+    renderPlaybackKeyframe(0);
+
+    // Reset Play button
+    document.getElementById('pbPlayToggleBtn').innerText = '▶ Play';
+
+    // Show modal
+    document.getElementById('playbackModal').classList.add('active');
+  } catch (err) {
+    alert(`Playback error: ${err.message}`);
+  }
+};
+
+function renderPlaybackMarkers(data) {
+  const track = document.getElementById('playbackMarkerTrack');
+  track.innerHTML = '';
+  const totalSnapshots = data.snapshots.length;
+  if (totalSnapshots <= 1) return;
+
+  // Add dots on track for paste events
+  data.snapshots.forEach((s, idx) => {
+    if (s.is_paste_event || s.delta_chars >= 40) {
+      const pct = (idx / (totalSnapshots - 1)) * 100;
+      const dot = document.createElement('div');
+      dot.style.position = 'absolute';
+      dot.style.left = `${pct}%`;
+      dot.style.top = '2px';
+      dot.style.width = '8px';
+      dot.style.height = '8px';
+      dot.style.borderRadius = '50%';
+      dot.style.background = '#f43f5e';
+      dot.style.transform = 'translateX(-50%)';
+      dot.title = `Paste Keyframe ${idx + 1}: +${s.delta_chars} chars at ${s.time_str}`;
+      dot.style.cursor = 'pointer';
+      dot.onclick = () => {
+        playbackState.currentIndex = idx;
+        renderPlaybackKeyframe(idx);
+      };
+      track.appendChild(dot);
+    }
+  });
+}
+
+function renderPlaybackKeyframe(index) {
+  if (!playbackState.data || !playbackState.data.snapshots.length) return;
+  const snapshots = playbackState.data.snapshots;
+  const safeIdx = Math.max(0, Math.min(index, snapshots.length - 1));
+  playbackState.currentIndex = safeIdx;
+
+  const current = snapshots[safeIdx];
+  const slider = document.getElementById('playbackTimelineSlider');
+  slider.value = safeIdx;
+
+  // Display code
+  document.getElementById('playbackCodeDisplay').innerText = current.code || '(empty starter code)';
+  document.getElementById('playbackCodeStats').innerText = `Lines: ${current.lines_count} • Characters: ${current.chars_count} • Δ: +${current.delta_chars}c / +${current.delta_lines}L`;
+  document.getElementById('playbackKeyframeTs').innerText = `Snapshot: ${current.time_str}`;
+
+  // Time label
+  const curMins = String(Math.floor(current.relative_seconds / 60)).padStart(2, '0');
+  const curSecs = String(current.relative_seconds % 60).padStart(2, '0');
+  document.getElementById('playbackCurrentTimeLabel').innerText = `${curMins}:${curSecs} (Keyframe ${safeIdx + 1} of ${snapshots.length})`;
+
+  const totMins = String(Math.floor(playbackState.data.total_duration_seconds / 60)).padStart(2, '0');
+  const totSecs = String(playbackState.data.total_duration_seconds % 60).padStart(2, '0');
+  document.getElementById('playbackTotalTimeLabel').innerText = `Duration: ${totMins}:${totSecs}`;
+
+  // Anomaly Callout Banner
+  const anomalyBanner = document.getElementById('playbackAnomalyBanner');
+  const anomalyText = document.getElementById('playbackAnomalyText');
+  if (current.is_paste_event || current.delta_chars >= 40) {
+    anomalyBanner.style.display = 'block';
+    anomalyText.innerText = `Sudden bulk insertion of +${current.delta_chars} characters (+${current.delta_lines} lines) detected at ${current.time_str}. External paste or copied template.`;
+  } else {
+    anomalyBanner.style.display = 'none';
+  }
+}
+
+// Scrubber Controls
+document.getElementById('playbackTimelineSlider').addEventListener('input', (e) => {
+  renderPlaybackKeyframe(Number(e.target.value));
+});
+
+document.getElementById('pbFirstBtn').addEventListener('click', () => {
+  renderPlaybackKeyframe(0);
+});
+
+document.getElementById('pbPrevBtn').addEventListener('click', () => {
+  renderPlaybackKeyframe(playbackState.currentIndex - 1);
+});
+
+document.getElementById('pbNextBtn').addEventListener('click', () => {
+  renderPlaybackKeyframe(playbackState.currentIndex + 1);
+});
+
+document.getElementById('pbLastBtn').addEventListener('click', () => {
+  if (playbackState.data) {
+    renderPlaybackKeyframe(playbackState.data.snapshots.length - 1);
+  }
+});
+
+document.getElementById('pbPlayToggleBtn').addEventListener('click', () => {
+  if (playbackState.isPlaying) {
+    // Pause
+    playbackState.isPlaying = false;
+    clearInterval(playbackState.timer);
+    document.getElementById('pbPlayToggleBtn').innerText = '▶ Play';
+  } else {
+    // Play
+    if (!playbackState.data || !playbackState.data.snapshots.length) return;
+    if (playbackState.currentIndex >= playbackState.data.snapshots.length - 1) {
+      playbackState.currentIndex = 0;
+      renderPlaybackKeyframe(0);
+    }
+    playbackState.isPlaying = true;
+    document.getElementById('pbPlayToggleBtn').innerText = '⏸ Pause';
+
+    const speed = Number(document.getElementById('playbackSpeedSelect').value) || 5;
+    const intervalMs = Math.max(100, Math.floor(1000 / speed));
+
+    playbackState.timer = setInterval(() => {
+      if (playbackState.currentIndex < playbackState.data.snapshots.length - 1) {
+        renderPlaybackKeyframe(playbackState.currentIndex + 1);
+      } else {
+        playbackState.isPlaying = false;
+        clearInterval(playbackState.timer);
+        document.getElementById('pbPlayToggleBtn').innerText = '▶ Play';
+      }
+    }, intervalMs);
+  }
+});
+
+document.getElementById('playbackSpeedSelect').addEventListener('change', () => {
+  if (playbackState.isPlaying) {
+    // Restart interval with new speed
+    clearInterval(playbackState.timer);
+    const speed = Number(document.getElementById('playbackSpeedSelect').value) || 5;
+    const intervalMs = Math.max(100, Math.floor(1000 / speed));
+    playbackState.timer = setInterval(() => {
+      if (playbackState.currentIndex < playbackState.data.snapshots.length - 1) {
+        renderPlaybackKeyframe(playbackState.currentIndex + 1);
+      } else {
+        playbackState.isPlaying = false;
+        clearInterval(playbackState.timer);
+        document.getElementById('pbPlayToggleBtn').innerText = '▶ Play';
+      }
+    }, intervalMs);
+  }
+});
+
+document.getElementById('closePlaybackModalBtn').addEventListener('click', () => {
+  if (playbackState.timer) clearInterval(playbackState.timer);
+  playbackState.isPlaying = false;
+  document.getElementById('playbackModal').classList.remove('active');
 });
 
 function escapeHtml(text) {

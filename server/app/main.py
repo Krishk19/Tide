@@ -39,6 +39,21 @@ def upgrade_schema():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS code_snapshots (
+                    id INTEGER PRIMARY KEY,
+                    student_session_id INTEGER NOT NULL REFERENCES students_in_session(id),
+                    code TEXT NOT NULL,
+                    lines_count INTEGER NOT NULL DEFAULT 0,
+                    chars_count INTEGER NOT NULL DEFAULT 0,
+                    is_paste_event BOOLEAN NOT NULL DEFAULT 0,
+                    ts DATETIME NOT NULL
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
 
 upgrade_schema()
 

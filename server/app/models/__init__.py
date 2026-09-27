@@ -1,4 +1,4 @@
-from app.models.entities import Teacher, Assignment, Session, StudentInSession, Submission, Flag
+from app.models.entities import Teacher, Assignment, Session, StudentInSession, Submission, Flag, CodeSnapshot
 
 __all__ = [
     "Teacher",
@@ -7,4 +7,5 @@ __all__ = [
     "StudentInSession",
     "Submission",
     "Flag",
+    "CodeSnapshot",
 ]
