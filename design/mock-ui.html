@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tide — UI Mock</title>
+<link rel="icon" href="data:," />
+<!--
+  Tide UI reference. Open in a browser. No dependencies.
+  Top switcher: Teacher Console screens and Student PC screens.
+  "Play demo" on the Live screen runs the demo script from docs/DEMO.md.
+-->
+<style>
+  :root{
+    --bg:#F5F6F8; --surface:#FFFFFF; --ink:#0F172A; --ink-2:#334155; --muted:#64748B; --faint:#94A3B8;
+    --line:#E6E8EC; --line-2:#EEF0F3;
+    --brand:#0B7A83; --brand-2:#E6F4F5;
+    --ok:#16A34A; --ok-bg:#EAF7EE;
+    --warn:#D97706; --warn-bg:#FDF3E3;
+    --crit:#DC2626; --crit-bg:#FDECEC;
+    --off:#94A3B8; --off-bg:#F1F3F6;
+    --r:12px; --r-sm:8px;
+    --shadow:0 1px 2px rgba(15,23,42,.05),0 4px 16px rgba(15,23,42,.06);
+    --font: "Inter","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono: "Cascadia Code","JetBrains Mono",ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer}
+  .mono{font-family:var(--mono)}
+
+  /* ---------- mock switcher (not part of the product) ---------- */
+  .switcher{position:sticky;top:0;z-index:100;display:flex;gap:18px;align-items:center;padding:8px 16px;background:#0F172A;color:#CBD5E1;font-size:12px}
+  .switcher b{color:#fff;font-weight:600;letter-spacing:.02em}
+  .switcher .grp{display:flex;gap:4px;align-items:center}
+  .switcher .grp span{color:#64748B;margin-right:4px;text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+  .switcher button{background:transparent;border:1px solid #334155;color:#CBD5E1;border-radius:6px;padding:4px 9px}
+  .switcher button.on{background:#fff;color:#0F172A;border-color:#fff}
+  .switcher .note{margin-left:auto;color:#64748B}
+
+  .screen{display:none;min-height:calc(100vh - 41px)}
+  .screen.on{display:block}
+
+  /* ---------- console shell ---------- */
+  .topbar{height:60px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+  .logo svg{width:26px;height:26px}
+  .exam-name{color:var(--muted);padding-left:16px;border-left:1px solid var(--line)}
+  .steps{display:flex;gap:2px;margin-left:18px;background:var(--bg);padding:3px;border-radius:10px}
+  .steps button{border:0;background:transparent;padding:6px 12px;border-radius:8px;color:var(--muted);font-weight:500}
+  .steps button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .spacer{flex:1}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500;background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .clock{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:-.01em}
+  .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:var(--r-sm);font-weight:500;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{border-color:#CBD2DA}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.danger{color:var(--crit)}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn.lg{padding:12px 22px;font-size:15px;border-radius:10px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .btn svg{width:16px;height:16px}
+
+  .page{padding:24px;max-width:1440px;margin:0 auto}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.015em}
+  h2{font-size:15px;margin:0;font-weight:600}
+  .sub{color:var(--muted)}
+  label.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.05em}
+
+  /* ---------- setup ---------- */
+  .setup{max-width:760px;margin:32px auto;padding:28px}
+  .row{display:grid;grid-template-columns:1fr 180px;gap:16px;margin-top:22px}
+  .input{width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font:inherit;background:var(--surface)}
+  .input:focus{outline:2px solid var(--brand-2);border-color:var(--brand)}
+  .stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+  .stepper button{border:0;background:var(--bg);width:36px;height:40px;font-size:18px;color:var(--ink-2)}
+  .stepper div{flex:1;text-align:center;font-weight:600}
+  .sets{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+  .drop{border:1.5px dashed #CBD2DA;border-radius:var(--r);padding:18px;min-height:128px;display:flex;flex-direction:column;gap:8px}
+  .drop .hd{display:flex;justify-content:space-between;align-items:center}
+  .drop .tag{font-size:11px;color:var(--muted)}
+  .file{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--bg);font-size:13px}
+  .file svg{width:15px;height:15px;color:var(--muted)}
+  .addfile{color:var(--brand);font-weight:500;font-size:13px;margin-top:auto}
+  .seg{display:inline-flex;background:var(--bg);padding:3px;border-radius:10px;gap:2px}
+  .seg button{border:0;background:transparent;padding:6px 12px;border-radius:8px;color:var(--muted);font-weight:500}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .apps{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .app{display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:500;user-select:none;cursor:pointer}
+  .app .ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700}
+  .app.off{opacity:.45;background:var(--bg)}
+  .app.off .ic{filter:grayscale(1)}
+  .blocked{margin-top:14px;padding:12px 14px;border-radius:var(--r-sm);background:var(--crit-bg);color:#991B1B;font-size:13px;display:flex;gap:10px;align-items:flex-start}
+  .blocked svg{flex:none;width:16px;height:16px;margin-top:1px}
+  .setup-foot{display:flex;justify-content:flex-end;margin-top:26px;gap:10px}
+  hr.sep{border:0;border-top:1px solid var(--line-2);margin:24px 0}
+
+  /* ---------- lobby ---------- */
+  .lobby{display:grid;grid-template-columns:340px 1fr;gap:20px}
+  .joincard{padding:28px;text-align:center;display:flex;flex-direction:column;gap:18px;align-self:start}
+  .code{font-family:var(--mono);font-size:44px;font-weight:700;letter-spacing:.14em;color:var(--ink)}
+  .joined{font-size:40px;font-weight:700;font-variant-numeric:tabular-nums}
+  .joined small{font-size:18px;color:var(--faint);font-weight:500}
+  .bar{height:8px;background:var(--line-2);border-radius:99px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .4s}
+  .legend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+
+  /* ---------- seat grid ---------- */
+  .grid-card{padding:18px}
+  .grid-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .filters{display:flex;gap:6px}
+  .filters button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;display:inline-flex;gap:6px;align-items:center;color:var(--ink-2)}
+  .filters button i{width:8px;height:8px;border-radius:50%}
+  .filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .seats{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:8px}
+  .seat{position:relative;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:9px 10px 8px;min-height:74px;display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .2s,background .2s}
+  .seat:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+  .seat .no{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+  .seat .roll{font-size:11px;color:var(--faint);font-family:var(--mono)}
+  .seat .now{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto}
+  .seat .badge{position:absolute;top:8px;right:8px;min-width:20px;height:20px;border-radius:99px;font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 6px;color:#fff}
+  .seat.ok{border-left:4px solid var(--ok)}
+  .seat.warn{border-left:4px solid var(--warn);background:var(--warn-bg);border-color:#F5D9AE}
+  .seat.warn .badge{background:var(--warn)}
+  .seat.crit{border-left:4px solid var(--crit);background:var(--crit-bg);border-color:#F6C4C4}
+  .seat.crit .badge{background:var(--crit)}
+  .seat.off{border-left:4px solid var(--off);background:var(--off-bg);color:var(--faint)}
+  .seat.off .no{color:var(--faint)}
+  .seat.wait{border:1.5px dashed #D5DAE1;background:transparent}
+  .seat.wait .no{color:#C2C9D2}
+  .seat.done{border-left:4px solid var(--brand)}
+  .seat.real{box-shadow:0 0 0 2px var(--brand) inset}
+  .seat.pulse{animation:pulse 1s ease-out 2}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.45)}100%{box-shadow:0 0 0 14px rgba(220,38,38,0)}}
+  .seat.dim{opacity:.25}
+
+  /* ---------- live ---------- */
+  .live{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .stat{padding:14px 16px;display:flex;align-items:center;gap:12px}
+  .stat .n{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat .l{color:var(--muted);font-size:12px;font-weight:500}
+  .stat .sw{width:10px;height:36px;border-radius:4px}
+  .feed{position:sticky;top:64px;max-height:calc(100vh - 150px);display:flex;flex-direction:column}
+  .feed-hd{padding:16px 18px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:8px}
+  .feed-list{overflow:auto;padding:6px}
+  .alert{display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:10px;border-radius:10px;align-items:start;cursor:pointer}
+  .alert:hover{background:var(--bg)}
+  .alert.new{animation:slidein .35s ease-out}
+  @keyframes slidein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .alert .sico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:13px}
+  .alert.crit .sico{background:var(--crit-bg);color:var(--crit)}
+  .alert.warn .sico{background:var(--warn-bg);color:var(--warn)}
+  .alert.off .sico{background:var(--off-bg);color:var(--muted)}
+  .alert .t{font-weight:600}
+  .alert .m{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px}
+  .alert time{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .src{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:99px;letter-spacing:.02em}
+  .src.rule{background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+  .src.jev{background:#EEF0FF;color:#4338CA}
+  .acted{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--ink);color:#fff}
+
+  /* ---------- drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.28);opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:41px;right:0;bottom:0;width:560px;background:var(--surface);z-index:60;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-10px 0 40px rgba(15,23,42,.12)}
+  .drawer.on{transform:none}
+  .dr-hd{padding:20px 22px 16px;border-bottom:1px solid var(--line-2)}
+  .dr-title{display:flex;align-items:center;gap:12px}
+  .dr-title .big{font-size:24px;font-weight:700}
+  .status-pill{padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600}
+  .status-pill.crit{background:var(--crit-bg);color:var(--crit)}
+  .status-pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .status-pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .dr-meta{display:flex;gap:16px;color:var(--muted);font-size:13px;margin-top:6px}
+  .dr-actions{display:flex;gap:8px;margin-top:14px}
+  .tabs{display:flex;gap:18px;padding:0 22px;border-bottom:1px solid var(--line-2)}
+  .tabs button{border:0;background:transparent;padding:12px 0;color:var(--muted);font-weight:600;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--ink);border-color:var(--ink)}
+  .dr-body{overflow:auto;padding:18px 22px;flex:1}
+  .tl{position:relative;padding-left:22px}
+  .tl::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--line-2)}
+  .ev{position:relative;padding:6px 0 14px}
+  .ev::before{content:"";position:absolute;left:-20px;top:10px;width:10px;height:10px;border-radius:50%;background:var(--faint);border:2px solid var(--surface)}
+  .ev.crit::before{background:var(--crit)} .ev.warn::before{background:var(--warn)} .ev.ok::before{background:var(--ok)} .ev.brand::before{background:var(--brand)}
+  .ev .h{display:flex;gap:8px;align-items:baseline}
+  .ev time{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;width:54px;flex:none}
+  .ev .x{font-weight:500}
+  .ev.info .x{color:var(--muted);font-weight:400}
+  .ev .card{margin:8px 0 0 62px;padding:10px;box-shadow:none}
+  .ev .shot{height:120px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .ev .fl-act{display:flex;gap:6px;margin-top:8px;align-items:center}
+  .ev .fl-act .btn{padding:5px 10px;font-size:12px}
+  .conf{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:8px}
+  .conf .meter{flex:1;height:6px;background:var(--line-2);border-radius:99px;overflow:hidden}
+  .conf .meter i{display:block;height:100%;background:#4F46E5}
+
+  /* fake screenshots */
+  .fake{width:100%;height:100%;display:flex;flex-direction:column;background:#fff;font-size:8px}
+  .fake .tb{height:14px;background:#DEE1E6;display:flex;align-items:center;gap:4px;padding:0 6px}
+  .fake .tb i{width:5px;height:5px;border-radius:50%;background:#aaa}
+  .fake .tb u{height:9px;flex:1;background:#fff;border-radius:3px;text-decoration:none;font-size:6.5px;padding-left:5px;color:#555;line-height:9px}
+  .fake .gpt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+  .fake .gpt b{font-size:11px}
+  .fake .gpt span{width:60%;height:14px;border:1px solid #ddd;border-radius:8px}
+  .fake.vsc{background:#1F1F1F}
+  .fake.vsc .code{flex:1;padding:6px 10px;display:flex;flex-direction:column;gap:3px}
+  .fake.vsc .code i{height:4px;border-radius:2px;background:#569CD6;opacity:.8}
+
+  /* code growth */
+  .chart{padding:16px}
+  .chart svg{width:100%;height:170px;display:block}
+  .files{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+
+  /* ---------- results ---------- */
+  .results{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line)}
+  td{padding:11px 14px;border-bottom:1px solid var(--line-2)}
+  tr:hover td{background:#FAFBFC}
+  .fchips{display:flex;gap:4px;flex-wrap:wrap}
+  .fc{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px}
+  .fc.crit{background:var(--crit-bg);color:var(--crit)} .fc.warn{background:var(--warn-bg);color:var(--warn)}
+  .sim{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+  .pair{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--bg)}
+  .pair .pct{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums}
+  .pair .pct.hi{color:var(--crit)}
+
+  /* ---------- student: desktop frame ---------- */
+  .desk{position:relative;height:calc(100vh - 41px);min-height:620px;background:
+    radial-gradient(1200px 600px at 20% 10%,#1E3A8A 0%,transparent 60%),
+    radial-gradient(900px 500px at 90% 90%,#0E7490 0%,transparent 60%),#0B1220;overflow:hidden}
+  .taskbar{position:absolute;left:0;right:0;bottom:0;height:46px;background:rgba(20,26,40,.82);backdrop-filter:blur(20px);display:flex;justify-content:center;align-items:center;gap:6px}
+  .taskbar .tb-ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px}
+  .taskbar .tb-ic.act{background:rgba(255,255,255,.12)}
+  .taskbar .tray{position:absolute;right:14px;color:#CBD5E1;font-size:11px;text-align:right;line-height:1.25}
+
+  .win{position:absolute;background:var(--surface);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden}
+  .win-tb{height:34px;display:flex;align-items:center;padding:0 12px;gap:8px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line-2)}
+  .win-tb svg{width:16px;height:16px}
+  .agent{width:420px;left:50%;top:50%;transform:translate(-50%,-54%)}
+  .agent .body{padding:26px 28px 28px;display:flex;flex-direction:column;gap:16px}
+  .found{display:inline-flex;gap:8px;align-items:center;align-self:flex-start;background:var(--ok-bg);color:#15803D;font-size:12px;font-weight:600;padding:5px 10px;border-radius:99px}
+  .found i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .codeboxes{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .codeboxes div{height:52px;border:1.5px solid var(--line);border-radius:10px;display:grid;place-items:center;font-family:var(--mono);font-size:22px;font-weight:700}
+  .codeboxes div.f{border-color:var(--brand);background:var(--brand-2)}
+  .two{display:grid;grid-template-columns:1fr 110px;gap:10px}
+  .checks{display:flex;flex-direction:column;gap:4px}
+  .check{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px}
+  .check .ci{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none}
+  .check .ci svg{width:15px;height:15px}
+  .check.ok .ci{background:var(--ok-bg);color:var(--ok)}
+  .check.warn{background:var(--warn-bg)} .check.warn .ci{background:#FBE3BF;color:var(--warn)}
+  .check.run .ci{border:2px solid var(--line);border-top-color:var(--brand);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .check .ct{font-weight:600}
+  .check .cd{font-size:12px;color:var(--muted)}
+  .waiting{text-align:center;padding:14px;border-radius:10px;background:var(--bg);color:var(--muted);font-weight:500;display:flex;gap:10px;justify-content:center;align-items:center}
+  .waiting i{width:8px;height:8px;border-radius:50%;background:var(--brand);animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* fake VS Code */
+  .vscode{left:6%;top:6%;right:6%;bottom:80px;background:#1E1E1E;border-radius:10px;color:#D4D4D4;display:grid;grid-template-rows:32px 1fr 22px;grid-template-columns:48px 220px 1fr}
+  .vscode .vtb{grid-column:1/-1;background:#181818;display:flex;align-items:center;justify-content:center;font-size:12px;color:#9DA1A6}
+  .vscode .act{background:#181818}
+  .vscode .side{background:#181818;border-right:1px solid #2B2B2B;padding:10px;font-size:12px;color:#BBB}
+  .vscode .side div{padding:3px 6px;border-radius:4px}
+  .vscode .side .sel{background:#37373D;color:#fff}
+  .vscode pre{margin:0;padding:14px 18px;font-family:var(--mono);font-size:13px;line-height:1.6;overflow:hidden}
+  .vscode .st{grid-column:1/-1;background:#0B7A83;font-size:11px;color:#fff;display:flex;align-items:center;padding:0 10px}
+  .k{color:#569CD6}.s{color:#CE9178}.c{color:#6A9955}.f{color:#DCDCAA}.ty{color:#4EC9B0}
+
+  /* timer pill */
+  .pill{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:14px;padding:7px 8px 7px 16px;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:13px}
+  .pill .p-seat{font-weight:700}
+  .pill .p-set{color:var(--muted)}
+  .pill .p-time{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  .pill .p-sep{width:1px;height:18px;background:var(--line)}
+  .pill .p-sub{background:var(--brand);color:#fff;border:0;border-radius:999px;padding:7px 14px;font-weight:600}
+  .pill .p-live{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+
+  /* block overlay */
+  .block{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;text-align:center;background:rgba(185,28,28,.94);backdrop-filter:blur(6px)}
+  .block .shield{width:84px;height:84px;border-radius:24px;background:rgba(255,255,255,.14);display:grid;place-items:center}
+  .block .shield svg{width:44px;height:44px}
+  .block h3{margin:0;font-size:34px;letter-spacing:-.02em}
+  .block p{margin:0;opacity:.85;font-size:16px}
+  .block .meta{margin-top:10px;font-size:12px;opacity:.7}
+  .block.net{background:rgba(15,23,42,.95)}
+  .block.net .shield{background:rgba(220,38,38,.25)}
+  .block .hint{display:flex;gap:10px;align-items:center;margin-top:8px;padding:10px 16px;border-radius:999px;background:rgba(255,255,255,.1);font-size:13px}
+  .block .hint i{width:8px;height:8px;border-radius:50%;background:#F87171;animation:blink 1s infinite}
+
+  .done-ic{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;margin:4px auto 0}
+  .done-ic svg{width:32px;height:32px}
+
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:500;transition:.25s;z-index:90;box-shadow:var(--shadow)}
+  .toast.on{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+
+<!-- ============ MOCK SWITCHER (not part of product) ============ -->
+<div class="switcher">
+  <b>Tide mock</b>
+  <div class="grp"><span>Teacher</span>
+    <button data-go="setup">Setup</button>
+    <button data-go="lobby">Lobby</button>
+    <button data-go="live" class="on">Live</button>
+    <button data-go="results">Results</button>
+  </div>
+  <div class="grp"><span>Student PC</span>
+    <button data-go="s-join">Join</button>
+    <button data-go="s-pre">Pre-flight</button>
+    <button data-go="s-exam">Exam</button>
+    <button data-go="s-block">Blocked</button>
+    <button data-go="s-net">No internet</button>
+    <button data-go="s-done">Done</button>
+  </div>
+  <div class="note">Click a seat to open its drawer · "Play demo" on Live</div>
+</div>
+
+<!-- shared SVG icons -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-wave" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="#0B7A83"/><path d="M5 19c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M5 13c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4" stroke="#fff" stroke-opacity=".5" stroke-width="2.6" fill="none" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 8v5m0 3.5v.01" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 9a14 14 0 0118 0M6 12.5a9 9 0 0112 0M9 16a4 4 0 016 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="19" r="1.3" fill="currentColor"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1112 0v5l1.5 2h-15zM10 20a2 2 0 004 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ TEACHER: SETUP ============ -->
+<section class="screen" id="setup">
+  <header class="topbar">
+    <div class="logo"><svg><use href="#i-wave"/></svg>Tide</div>
+    <div class="steps"><button class="on">Setup</button><button data-go="lobby">Lobby</button><button data-go="live">Live</button><button data-go="results">Results</button></div>
+  </header>
+  <div class="card setup">
+    <h1>New lab test</h1>
+    <div class="sub">Questions stay here until you press Start.</div>
+
+    <div class="row">
+      <div><label class="lbl">Title</label><input class="input" value="CN Lab Test 3 — Packet Analysis" /></div>
+      <div><label class="lbl">Duration</label>
+        <div class="stepper"><button>−</button><div>90 min</div><button>+</button></div></div>
+    </div>
+
+    <hr class="sep" />
+    <label class="lbl">Question sets</label>
+    <div class="sets">
+      <div class="drop">
+        <div class="hd"><h2>Set A</h2><span class="tag">Odd seats · 1, 3, 5…</span></div>
+        <div class="file"><svg><use href="#i-file"/></svg>setA_questions.pdf</div>
+        <div class="file"><svg><use href="#i-file"/></svg>capture_A.pcapng</div>
+        <span class="addfile">+ Add files</span>
+      </div>
+      <div class="drop">
+        <div class="hd"><h2>Set B</h2><span class="tag">Even seats · 2, 4, 6…</span></div>
+        <div class="file"><svg><use href="#i-file"/></svg>setB_questions.pdf</div>
+        <div class="file"><svg><use href="#i-file"/></svg>capture_B.pcapng</div>
+        <span class="addfile">+ Add files</span>
+      </div>
+    </div>
+
+    <hr class="sep" />
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <label class="lbl" style="margin:0">Allowed apps</label>
+      <div class="seg"><button class="on">Networking</button><button>Programming</button><button>Custom</button></div>
+    </div>
+    <div class="apps" id="apps"></div>
+    <div class="blocked"><svg><use href="#i-shield"/></svg>
+      <div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, internet. <span style="opacity:.7">Unknown apps are checked by Jev.</span></div>
+    </div>
+
+    <div class="setup-foot">
+      <button class="btn ghost">Save draft</button>
+      <button class="btn primary lg" data-go="lobby">Create &amp; open lobby</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TEACHER: LOBBY ============ -->
+<section class="screen" id="lobby">
+  <header class="topbar">
+    <div class="logo"><svg><use href="#i-wave"/></svg>Tide</div>
+    <div class="exam-name">CN Lab Test 3</div>
+    <div class="steps"><button data-go="setup">Setup</button><button class="on">Lobby</button><button data-go="live">Live</button><button data-go="results">Results</button></div>
+    <div class="spacer"></div>
+    <span class="chip"><span class="dot"></span>Jev live</span>
+  </header>
+  <div class="page lobby">
+    <div class="card joincard">
+      <div class="sub">Join code</div>
+      <div class="code">K7Q2XM</div>
+      <div class="sub mono" style="font-size:12px;margin-top:-10px">Server 10.10.0.1 · auto-discovered</div>
+      <hr class="sep" style="margin:4px 0" />
+      <div class="joined"><span id="lobbyN">57</span><small> / 60</small></div>
+      <div class="bar"><i id="lobbyBar" style="width:95%"></i></div>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i>Ready</span>
+        <span><i style="background:var(--warn)"></i>Check</span>
+        <span><i style="background:var(--crit)"></i>Internet</span>
+        <span><i style="border:1.5px dashed #C2C9D2"></i>Waiting</span>
+      </div>
+      <button class="btn primary lg" data-go="live" style="justify-content:center">Start exam · 90 min</button>
+      <div class="sub" style="font-size:12px">Red seats won't receive questions.</div>
+    </div>
+    <div class="card grid-card">
+      <div class="grid-head"><h2>Seats</h2><span class="sub">· pre-flight</span></div>
+      <div class="seats" id="lobbySeats"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TEACHER: LIVE ============ -->
+<section class="screen on" id="live">
+  <header class="topbar">
+    <div class="logo"><svg><use href="#i-wave"/></svg>Tide</div>
+    <div class="exam-name">CN Lab Test 3</div>
+    <div class="steps"><button data-go="setup">Setup</button><button data-go="lobby">Lobby</button><button class="on">Live</button><button data-go="results">Results</button></div>
+    <div class="spacer"></div>
+    <span class="chip"><span class="dot"></span>Jev live</span>
+    <div class="clock" id="clock">42:18</div>
+    <button class="btn"><svg><use href="#i-plus"/></svg>5 min</button>
+    <button class="btn"><svg><use href="#i-bell"/></svg>Notice</button>
+    <button class="btn primary" id="playBtn"><svg><use href="#i-play"/></svg>Play demo</button>
+  </header>
+  <div class="page">
+    <div class="summary">
+      <div class="card stat"><div class="sw" style="background:var(--ok)"></div><div><div class="n" id="nOk">54</div><div class="l">Working</div></div></div>
+      <div class="card stat"><div class="sw" style="background:var(--warn)"></div><div><div class="n" id="nWarn">3</div><div class="l">Review</div></div></div>
+      <div class="card stat"><div class="sw" style="background:var(--crit)"></div><div><div class="n" id="nCrit">2</div><div class="l">Alert</div></div></div>
+      <div class="card stat"><div class="sw" style="background:var(--off)"></div><div><div class="n" id="nOff">1</div><div class="l">Offline</div></div></div>
+    </div>
+    <div class="live">
+      <div class="card grid-card">
+        <div class="grid-head">
+          <h2>Lab 3</h2><span class="sub">· 60 seats</span>
+          <div class="spacer"></div>
+          <div class="filters" id="filters">
+            <button class="on" data-f="all">All</button>
+            <button data-f="crit"><i style="background:var(--crit)"></i>Alert</button>
+            <button data-f="warn"><i style="background:var(--warn)"></i>Review</button>
+            <button data-f="off"><i style="background:var(--off)"></i>Offline</button>
+          </div>
+        </div>
+        <div class="seats" id="liveSeats"></div>
+      </div>
+      <div class="card feed">
+        <div class="feed-hd"><h2>Alerts</h2><span class="sub" id="feedN">· 6 open</span></div>
+        <div class="feed-list" id="feed"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TEACHER: RESULTS ============ -->
+<section class="screen" id="results">
+  <header class="topbar">
+    <div class="logo"><svg><use href="#i-wave"/></svg>Tide</div>
+    <div class="exam-name">CN Lab Test 3</div>
+    <div class="steps"><button data-go="setup">Setup</button><button data-go="lobby">Lobby</button><button data-go="live">Live</button><button class="on">Results</button></div>
+    <div class="spacer"></div>
+    <span class="chip">Ended 11:30 · 60/60 submitted</span>
+    <button class="btn primary"><svg><use href="#i-dl"/></svg>Export CSV</button>
+  </header>
+  <div class="page results">
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead><tr><th>Seat</th><th>Roll</th><th>Set</th><th>Submitted</th><th>Flags</th><th>Max match</th><th></th></tr></thead>
+        <tbody id="resRows"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:20px">
+      <div class="card sim">
+        <h2>Similar submissions</h2>
+        <div class="pair"><b>PC-14</b>↔<b>PC-16</b><span class="sub">Set B</span><span class="pct hi">91%</span></div>
+        <div class="pair"><b>PC-07</b>↔<span class="mono" style="font-size:12px">D:\old\dsa_lab5.cpp</span><span class="pct hi">82%</span></div>
+        <div class="pair"><b>PC-31</b>↔<b>PC-33</b><span class="sub">Set A</span><span class="pct">48%</span></div>
+      </div>
+      <div class="card sim">
+        <h2>Flags this exam</h2>
+        <div class="pair">AI assistant<span class="pct">4</span></div>
+        <div class="pair">Internet detected<span class="pct">2</span></div>
+        <div class="pair">Old code reused<span class="pct">1</span></div>
+        <div class="pair">Code burst<span class="pct">3</span></div>
+        <div class="pair">Agent offline<span class="pct">1</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: JOIN ============ -->
+<section class="screen" id="s-join">
+  <div class="desk">
+    <div class="win agent">
+      <div class="win-tb"><svg><use href="#i-wave"/></svg>Tide</div>
+      <div class="body">
+        <div><h1>Join lab test</h1></div>
+        <span class="found"><i></i>Teacher found · 10.10.0.1</span>
+        <div><label class="lbl">Code</label>
+          <div class="codeboxes"><div class="f">K</div><div class="f">7</div><div class="f">Q</div><div class="f">2</div><div class="f">X</div><div class="f">M</div></div></div>
+        <div class="two">
+          <div><label class="lbl">Roll no.</label><input class="input mono" value="22BCS107" /></div>
+          <div><label class="lbl">Seat</label><input class="input mono" value="07" /></div>
+        </div>
+        <button class="btn primary lg" data-go="s-pre" style="justify-content:center">Join</button>
+      </div>
+    </div>
+    <div class="taskbar"><div class="tb-ic" style="background:#0B7A83">T</div><div class="tray">10:14<br>28-09-2026</div></div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: PRE-FLIGHT ============ -->
+<section class="screen" id="s-pre">
+  <div class="desk">
+    <div class="win agent">
+      <div class="win-tb"><svg><use href="#i-wave"/></svg>Tide · PC-07 · 22BCS107</div>
+      <div class="body">
+        <h1>Getting ready</h1>
+        <div class="checks">
+          <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Offline</div><div class="cd">No internet on any adapter</div></div></div>
+          <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Apps</div><div class="cd">Nothing blocked running</div></div></div>
+          <div class="check warn"><div class="ci"><svg><use href="#i-warn"/></svg></div><div><div class="ct">GitHub Copilot found</div><div class="cd">Teacher has been told</div></div></div>
+          <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Files indexed</div><div class="cd">214 files</div></div></div>
+        </div>
+        <div class="waiting"><i></i>Waiting for teacher to start</div>
+      </div>
+    </div>
+    <div class="taskbar"><div class="tb-ic act" style="background:#0B7A83">T</div><div class="tray">10:16<br>28-09-2026</div></div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: EXAM ============ -->
+<section class="screen" id="s-exam">
+  <div class="desk">
+    <div class="pill">
+      <span class="p-live"></span><span class="p-seat">PC-07</span><span class="p-set">Set A</span>
+      <span class="p-sep"></span><span class="p-time" id="sClock">42:18</span>
+      <button class="p-sub" data-go="s-done">Submit</button>
+    </div>
+    <div class="win vscode">
+      <div class="vtb">main.c — 22BCS107 — Visual Studio Code</div>
+      <div class="act"></div>
+      <div class="side">
+        <div style="color:#888;font-size:11px;margin-bottom:6px">C:\EXAM\22BCS107</div>
+        <div>README.txt</div><div>setA_questions.pdf</div><div>capture_A.pcapng</div><div class="sel">main.c</div>
+      </div>
+<pre><span class="c">// Q1: parse the ARP frames in capture_A and print sender IP/MAC</span>
+<span class="k">#include</span> <span class="s">&lt;stdio.h&gt;</span>
+<span class="k">#include</span> <span class="s">&lt;pcap.h&gt;</span>
+
+<span class="ty">int</span> <span class="f">main</span>(<span class="ty">int</span> argc, <span class="ty">char</span> **argv) {
+    <span class="ty">char</span> err[PCAP_ERRBUF_SIZE];
+    <span class="ty">pcap_t</span> *h = <span class="f">pcap_open_offline</span>(<span class="s">"capture_A.pcapng"</span>, err);
+    <span class="k">if</span> (!h) { <span class="f">fprintf</span>(stderr, <span class="s">"%s\n"</span>, err); <span class="k">return</span> <span class="s">1</span>; }
+    <span class="c">// TODO: loop packets, filter ethertype 0x0806</span>
+</pre>
+      <div class="st">main.c · Ln 11 · C</div>
+    </div>
+    <div class="taskbar">
+      <div class="tb-ic act" style="background:#0078D4">VS</div>
+      <div class="tb-ic" style="background:#1679A7">W</div>
+      <div class="tb-ic" style="background:#334155">&gt;_</div>
+      <div class="tb-ic" style="background:#F5B400;color:#111">E</div>
+      <div class="tray">10:47<br>28-09-2026</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: BLOCKED ============ -->
+<section class="screen" id="s-block">
+  <div class="desk">
+    <div class="block">
+      <div class="shield"><svg><use href="#i-shield"/></svg></div>
+      <h3>ChatGPT blocked</h3>
+      <p>Reported to your invigilator.</p>
+      <div class="meta">10:42:07 · PC-07</div>
+    </div>
+    <div class="taskbar"><div class="tb-ic act" style="background:#0078D4">VS</div><div class="tray">10:42<br>28-09-2026</div></div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: NO INTERNET ============ -->
+<section class="screen" id="s-net">
+  <div class="desk">
+    <div class="block net">
+      <div class="shield"><svg style="color:#F87171"><use href="#i-wifi"/></svg></div>
+      <h3>Internet detected</h3>
+      <p>Disconnect Wi-Fi to continue.</p>
+      <div class="hint"><i></i>Wi-Fi “Redmi Note” · reported</div>
+    </div>
+    <div class="taskbar"><div class="tb-ic act" style="background:#0078D4">VS</div><div class="tray">10:44<br>28-09-2026</div></div>
+  </div>
+</section>
+
+<!-- ============ STUDENT: DONE ============ -->
+<section class="screen" id="s-done">
+  <div class="desk">
+    <div class="win agent">
+      <div class="win-tb"><svg><use href="#i-wave"/></svg>Tide · PC-07 · 22BCS107</div>
+      <div class="body" style="text-align:center">
+        <div class="done-ic"><svg><use href="#i-check"/></svg></div>
+        <h1>Submitted</h1>
+        <div class="sub">3 files · 10:58</div>
+        <div class="sub" style="font-size:12px">You can leave. Tide closes in 10 s.</div>
+      </div>
+    </div>
+    <div class="taskbar"><div class="tray">10:58<br>28-09-2026</div></div>
+  </div>
+</section>
+
+<!-- ============ SEAT DRAWER ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dr-hd">
+    <div class="dr-title"><span class="big" id="drSeat">PC-07</span><span class="status-pill crit" id="drStatus">Alert</span><div class="spacer"></div><button class="btn ghost" id="drClose">✕</button></div>
+    <div class="dr-meta"><span class="mono" id="drRoll">22BCS107</span><span id="drSet">Set A</span><span id="drNow">Now: VS Code</span></div>
+    <div class="dr-actions">
+      <button class="btn"><svg><use href="#i-bell"/></svg>Warn</button>
+      <button class="btn"><svg><use href="#i-plus"/></svg>5 min</button>
+      <button class="btn danger">Force submit</button>
+    </div>
+  </div>
+  <div class="tabs" id="drTabs">
+    <button class="on" data-t="tl">Timeline</button>
+    <button data-t="code">Code</button>
+  </div>
+  <div class="dr-body">
+    <div id="t-tl" class="tl"></div>
+    <div id="t-code" style="display:none">
+      <div class="card chart">
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>Lines in C:\Exam</h2><span class="sub" style="font-size:12px">every 30 s</span></div>
+        <svg viewBox="0 0 500 170" preserveAspectRatio="none">
+          <g stroke="#EEF0F3"><line x1="0" y1="40" x2="500" y2="40"/><line x1="0" y1="85" x2="500" y2="85"/><line x1="0" y1="130" x2="500" y2="130"/></g>
+          <path d="M0 160 L40 156 L80 150 L120 146 L160 140 L200 136 L240 131 L270 128 L275 58 L310 54 L350 50 L390 45 L430 40 L470 36 L500 33" fill="none" stroke="#0B7A83" stroke-width="2.5"/>
+          <path d="M0 160 L40 156 L80 150 L120 146 L160 140 L200 136 L240 131 L270 128 L275 58 L310 54 L350 50 L390 45 L430 40 L470 36 L500 33 L500 170 L0 170Z" fill="#0B7A83" opacity=".07"/>
+          <line x1="272" y1="20" x2="272" y2="165" stroke="#DC2626" stroke-dasharray="4 4"/>
+          <rect x="280" y="72" width="128" height="22" rx="11" fill="#FDECEC"/>
+          <text x="292" y="87" font-size="12" font-weight="700" fill="#DC2626" font-family="Segoe UI,system-ui">+72 lines in 30 s</text>
+        </svg>
+      </div>
+      <div class="files">
+        <div class="file"><svg><use href="#i-file"/></svg>main.c<span class="spacer"></span><span class="sub">118 lines</span></div>
+        <div class="file"><svg><use href="#i-file"/></svg>notes.txt<span class="spacer"></span><span class="sub">9 lines</span></div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------ data ------------------ */
+const APPS = [
+  ["VS Code","#0078D4","VS",1],["CodeBlocks","#C2410C","CB",1],["Terminal","#334155",">_",1],
+  ["Explorer","#F5B400","E",1],["Wireshark","#1679A7","W",1],["VMware","#6D28D9","VM",1],
+  ["Notepad","#0EA5E9","N",1],["Chrome","#16A34A","C",0],["Edge","#0891B2","e",0]
+];
+const NOW_APPS = ["VS Code","VS Code","VS Code","Wireshark","Terminal","CodeBlocks","VMware","Explorer"];
+const roll = n => "22BCS1" + String(n).padStart(2,"0");
+
+// seeded seat states for the live room
+const seats = Array.from({length:60},(_,i)=>{
+  const n=i+1;
+  return {n, roll:roll(n), state:"ok", flags:0, now:NOW_APPS[(n*7)%NOW_APPS.length]};
+});
+Object.assign(seats[13],{state:"crit",flags:2,now:"VS Code"});   // PC-14 similarity + usb
+Object.assign(seats[40],{state:"crit",flags:1,now:"Chrome"});    // PC-41
+Object.assign(seats[22],{state:"warn",flags:1});
+Object.assign(seats[28],{state:"warn",flags:1});
+Object.assign(seats[51],{state:"warn",flags:1});
+Object.assign(seats[35],{state:"off",flags:1,now:"—"});
+seats[6].real = true;  // PC-07 is the real laptop
+
+const alerts = [
+  {seat:41,sev:"crit",t:"Claude — closed",m:["rule"],acted:1,time:"10:39"},
+  {seat:14,sev:"crit",t:"USB drive inserted",m:["rule"],time:"10:31"},
+  {seat:36,sev:"off", t:"Agent offline",m:[],time:"10:28"},
+  {seat:23,sev:"warn",t:"Code burst · +61 lines",m:[],time:"10:26"},
+  {seat:29,sev:"warn",t:"Connection to PC-30",m:[],time:"10:22"},
+  {seat:52,sev:"warn",t:"Unknown app “NoteGPT”",m:["jev",0.74],time:"10:19"},
+];
+
+/* ------------------ render ------------------ */
+function seatHTML(s, mode){
+  const cls = ["seat", mode==="lobby" ? s.lstate : s.state, s.real?"real":""].join(" ");
+  const badge = mode==="live" && s.flags ? `<span class="badge">${s.flags}</span>` : "";
+  const now = mode==="lobby" ? (s.lnote||"") : s.now;
+  return `<div class="${cls}" data-seat="${s.n}"><span class="no">${String(s.n).padStart(2,"0")}</span>`+
+         `<span class="roll">${mode==="lobby"&&s.lstate==="wait"?"":s.roll.slice(-3)}</span>${badge}<span class="now">${now}</span></div>`;
+}
+function renderLive(){
+  const f = document.querySelector("#filters .on").dataset.f;
+  document.getElementById("liveSeats").innerHTML = seats.map(s=>seatHTML(s,"live")).join("");
+  if(f!=="all") document.querySelectorAll("#liveSeats .seat").forEach(el=>{ if(!el.classList.contains(f)) el.classList.add("dim"); });
+  const c = k=>seats.filter(s=>s.state===k).length;
+  nOk.textContent=c("ok"); nWarn.textContent=c("warn"); nCrit.textContent=c("crit"); nOff.textContent=c("off");
+}
+function alertHTML(a,isNew){
+  const src = a.m[0]==="jev" ? `<span class="src jev">Jev ${a.m[1].toFixed(2)}</span>` : a.m[0]==="rule" ? `<span class="src rule">Rule</span>` : "";
+  const acted = a.acted ? `<span class="acted">Auto-closed</span>` : "";
+  return `<div class="alert ${a.sev} ${isNew?"new":""}" data-seat="${a.seat}"><div class="sico">${String(a.seat).padStart(2,"0")}</div>`+
+    `<div><div class="t">${a.t}</div><div class="m">PC-${String(a.seat).padStart(2,"0")} ${src} ${acted}</div></div><time>${a.time}</time></div>`;
+}
+function renderFeed(){ feed.innerHTML = alerts.map((a,i)=>alertHTML(a,a._new)).join(""); alerts.forEach(a=>a._new=false); feedN.textContent=`· ${alerts.length} open`; }
+
+// lobby
+const lobbySeats = seats.map(s=>({...s,lstate:"ok",lnote:"Ready"}));
+[58,59,60].forEach(n=>Object.assign(lobbySeats[n-1],{lstate:"wait",lnote:""}));
+Object.assign(lobbySeats[6],{lstate:"warn",lnote:"Copilot found"});
+Object.assign(lobbySeats[18],{lstate:"crit",lnote:"Wi-Fi online"});
+Object.assign(lobbySeats[44],{lstate:"warn",lnote:"Copilot found"});
+document.getElementById("lobbySeats").innerHTML = lobbySeats.map(s=>seatHTML(s,"lobby")).join("");
+
+// setup apps
+document.getElementById("apps").innerHTML = APPS.map(([n,c,ic,on])=>`<span class="app ${on?"":"off"}"><span class="ic" style="background:${c}">${ic}</span>${n}</span>`).join("");
+document.getElementById("apps").addEventListener("click",e=>{ const a=e.target.closest(".app"); if(a) a.classList.toggle("off"); });
+
+// results
+const resFlags = {7:[["crit","ChatGPT"],["crit","Internet"],["crit","Old code"]],14:[["crit","USB"],["warn","Burst"]],16:[["warn","Burst"]],41:[["crit","Claude"]],36:[["crit","Offline"]],23:[["warn","Burst"]]};
+const resMatch = {7:82,14:91,16:91,31:48,33:48};
+document.getElementById("resRows").innerHTML = [7,14,16,23,31,33,36,41,1,2,3,4].map(n=>{
+  const fl=(resFlags[n]||[]).map(([s,t])=>`<span class="fc ${s}">${t}</span>`).join("")||`<span class="sub">—</span>`;
+  const m=resMatch[n]; const mm = m?`<b style="color:${m>=80?"var(--crit)":"inherit"}">${m}%</b>`:`<span class="sub">${8+(n*13)%20}%</span>`;
+  return `<tr><td><b>PC-${String(n).padStart(2,"0")}</b></td><td class="mono">${roll(n)}</td><td>${n%2?"A":"B"}</td><td>11:${String(10+(n*3)%19).padStart(2,"0")}</td><td><div class="fchips">${fl}</div></td><td>${mm}</td><td><button class="btn ghost" style="padding:4px 8px">Files</button></td></tr>`;
+}).join("");
+
+/* ------------------ drawer ------------------ */
+const shotGPT = `<div class="fake"><div class="tb"><i></i><i></i><i></i><u>chatgpt.com</u></div><div class="gpt"><b>What can I help with?</b><span></span></div></div>`;
+const shotPoe = `<div class="fake"><div class="tb"><i></i><i></i><i></i><u>poe.com/chat</u></div><div class="gpt"><b>Poe</b><span></span></div></div>`;
+const shotVS  = `<div class="fake vsc"><div class="tb" style="background:#333"><u style="background:#444;color:#ccc">dsa_lab5.cpp — old — VS Code</u></div><div class="code"><i style="width:40%"></i><i style="width:70%"></i><i style="width:55%;background:#CE9178"></i><i style="width:80%"></i><i style="width:35%;background:#DCDCAA"></i><i style="width:62%"></i></div></div>`;
+
+let seat7Events = [
+  {time:"10:16",sev:"warn",x:"Pre-flight · GitHub Copilot installed",flag:1,src:"Rule"},
+  {time:"10:16",sev:"brand",x:"Joined · Set A delivered · 3 files"},
+  {time:"10:17",sev:"info",x:"VS Code"},
+  {time:"10:24",sev:"info",x:"Wireshark"},
+];
+function renderTimeline(evs){
+  document.getElementById("t-tl").innerHTML = evs.slice().reverse().map(e=>{
+    let inner = "";
+    if(e.flag){
+      inner = `<div class="card">${e.shot?`<div class="shot">${e.shot}</div>`:""}`+
+        (e.conf?`<div class="conf"><span class="src jev">Jev</span>ai_assistant<div class="meter"><i style="width:${e.conf*100}%"></i></div><b>${e.conf.toFixed(2)}</b></div>`:"")+
+        `<div class="fl-act">${e.acted?`<span class="acted">${e.acted}</span>`:`<span class="src rule">${e.src||"Rule"}</span>`}<span class="spacer"></span><button class="btn">Dismiss</button><button class="btn danger">Confirm</button></div></div>`;
+    }
+    return `<div class="ev ${e.sev}"><div class="h"><time>${e.time}</time><span class="x">${e.x}</span></div>${inner}</div>`;
+  }).join("");
+}
+function openDrawer(n){
+  const s = seats[n-1];
+  drSeat.textContent = "PC-"+String(n).padStart(2,"0");
+  drRoll.textContent = s.roll;
+  drSet.textContent = "Set " + (n%2 ? "A" : "B");
+  drNow.textContent = "Now: " + s.now;
+  drStatus.className = "status-pill "+(s.state==="off"?"warn":s.state);
+  drStatus.textContent = {ok:"Working",warn:"Review",crit:"Alert",off:"Offline"}[s.state];
+  renderTimeline(n===7 ? seat7Events : [
+    {time:"10:16",sev:"brand",x:`Joined · Set ${n%2?"A":"B"} delivered`},
+    {time:"10:18",sev:"info",x:s.now},
+    ...(s.flags?[{time:"10:31",sev:s.state==="warn"?"warn":"crit",x:alerts.find(a=>a.seat===n)?.t||"Flag",flag:1}]:[])
+  ]);
+  scrim.classList.add("on"); drawer.classList.add("on");
+}
+function closeDrawer(){ scrim.classList.remove("on"); drawer.classList.remove("on"); }
+document.addEventListener("click",e=>{
+  const s = e.target.closest("[data-seat]"); if(s && (s.closest("#liveSeats")||s.closest("#feed"))) openDrawer(+s.dataset.seat);
+});
+scrim.onclick = closeDrawer; drClose.onclick = closeDrawer;
+drTabs.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  drTabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+  document.getElementById("t-tl").style.display = b.dataset.t==="tl"?"":"none";
+  document.getElementById("t-code").style.display = b.dataset.t==="code"?"":"none";
+});
+
+/* ------------------ nav ------------------ */
+function go(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("on",s.id===id));
+  document.querySelectorAll(".switcher [data-go]").forEach(b=>b.classList.toggle("on",b.dataset.go===id));
+  closeDrawer(); window.scrollTo(0,0);
+}
+document.addEventListener("click",e=>{ const b=e.target.closest("[data-go]"); if(b){ e.preventDefault(); go(b.dataset.go); }});
+filters.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; filters.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); renderLive(); });
+
+/* ------------------ clock ------------------ */
+let remain = 42*60+18;
+setInterval(()=>{ remain=Math.max(0,remain-1); const t=`${String(Math.floor(remain/60)).padStart(2,"0")}:${String(remain%60).padStart(2,"0")}`; clock.textContent=t; sClock.textContent=t; },1000);
+
+/* ------------------ demo playback ------------------ */
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),2200); }
+function hit(n, sev, alert, ev){
+  const s=seats[n-1]; s.flags++; if(sev==="crit"||s.state!=="crit") s.state=sev;
+  alerts.unshift({...alert,seat:n,sev,_new:true}); seat7Events.push(ev);
+  renderLive(); renderFeed();
+  const el=document.querySelector(`#liveSeats [data-seat="${n}"]`); el&&el.classList.add("pulse");
+}
+const STEPS = [
+  [1200, ()=>{ seats[6].now="Chrome"; renderLive(); toast("PC-07 opens chatgpt.com"); }],
+  [1400, ()=>hit(7,"crit",{t:"ChatGPT — closed",m:["rule"],acted:1,time:"10:42"},{time:"10:42",sev:"crit",x:"ChatGPT · chatgpt.com",flag:1,shot:shotGPT,acted:"Auto-closed"})],
+  [2600, ()=>{ toast("PC-07 opens poe.com (not on any list)"); }],
+  [1500, ()=>hit(7,"crit",{t:"Poe — AI assistant",m:["jev",0.96],acted:1,time:"10:43"},{time:"10:43",sev:"crit",x:"Poe · poe.com",flag:1,shot:shotPoe,conf:0.96,acted:"Auto-closed"})],
+  [2600, ()=>{ toast("PC-07 joins a phone hotspot"); }],
+  [1400, ()=>hit(7,"crit",{t:"Internet via Wi-Fi “Redmi”",m:["rule"],time:"10:44"},{time:"10:44",sev:"crit",x:"Internet reachable · Wi-Fi “Redmi Note”",flag:1})],
+  [2600, ()=>{ seats[6].now="VS Code"; renderLive(); toast("PC-07 opens D:\\old\\dsa_lab5.cpp"); }],
+  [1400, ()=>hit(7,"crit",{t:"Old code reused · 82%",m:["rule"],time:"10:46"},{time:"10:46",sev:"crit",x:"Old code · D:\\old\\dsa_lab5.cpp → main.c (82%)",flag:1,shot:shotVS})],
+  [1600, ()=>{ openDrawer(7); toast("The teacher sees the story"); }],
+];
+playBtn.onclick = ()=>{
+  playBtn.disabled = true; closeDrawer();
+  let t=0; STEPS.forEach(([d,fn])=>{ t+=d; setTimeout(fn,t); });
+  setTimeout(()=>playBtn.disabled=false, t+500);
+};
+
+renderLive(); renderFeed();
+</script>
+</body>
+</html>
