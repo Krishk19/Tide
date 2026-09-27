@@ -68,54 +68,54 @@ Demonstrate a complete, working, end-to-end coding exam on LAN:
 ### Detailed V1 Checklist
 
 #### 1. Backend Core & Database (Tier 0 & Tier 1)
-- [ ] **Database Setup:**
+- [x] **Database Setup:**
   - SQLite database initialized with tables: `teachers`, `assignments`, `sessions`, `students_in_session`, `submissions`, `flags`.
   - Proper foreign keys and indexes (`teacher_id`, `access_code`, `student_session_id`, `ts`).
-- [ ] **Teacher Authentication API:**
+- [x] **Teacher Authentication API:**
   - `POST /api/auth/register` (Seed/register instructor accounts with bcrypt).
   - `POST /api/auth/login` (Verify password, return JWT token containing `teacher_id` and `username`).
   - `GET /api/auth/me` (Token verification).
-- [ ] **Assignment Management API:**
+- [x] **Assignment Management API:**
   - `POST /api/assignments` (Create assignment: title, statement, starter code, visible tests JSON, hidden tests JSON, languages).
   - `GET /api/assignments` (List assignments strictly filtered by authenticated `teacher_id`).
   - `GET /api/assignments/{id}` (Get assignment details).
-- [ ] **Session Scheduling API:**
+- [x] **Session Scheduling API:**
   - `POST /api/sessions` (Create session linked to an assignment, specify `start_time`, generate unique 6-character alphanumeric code).
   - `GET /api/sessions` (List sessions for the logged-in teacher).
   - `GET /api/sessions/{id}` (Session details + student attendance list).
-- [ ] **Student Join & State Gate API:**
+- [x] **Student Join & State Gate API:**
   - `POST /api/sessions/join` (Validate 6-char code, register `student_name` + `student_identifier`, return `student_session_id`).
   - `GET /api/exam/state/{student_session_id}`:
     - Compare `current_server_time` with `session.start_time`.
     - If `now < start_time`: Return `status: "locked"`, `start_time`, `server_time`.
     - If `now >= start_time`: Return `status: "active"`, problem statement, starter code, visible tests. **NEVER return hidden tests.**
-- [ ] **Code Execution & Grading API:**
+- [x] **Code Execution & Grading API:**
   - Direct execution runner (subprocess/sandbox fallback for Python/C++/Java).
   - `POST /api/exam/run` (Execute code against visible test cases only, return stdout, stderr, execution time).
   - `POST /api/exam/submit` (Execute code against visible AND server-side hidden test cases; return summary of passed/failed counts; record submission in DB).
-- [ ] **SQL Grading Subsystem:**
+- [x] **SQL Grading Subsystem:**
   - Dynamic in-memory SQLite runner.
   - Execute question schema definition & seed data.
   - Execute student query, extract tabular results, normalize types and casing.
   - Compare student result set with expected query result set order-agnostically.
-- [ ] **Autosave Endpoint:**
+- [x] **Autosave Endpoint:**
   - `POST /api/exam/autosave` (Debounced update of `submissions.code` and `submissions.last_autosaved_at`).
-- [ ] **WebSocket Telemetry Hub:**
+- [x] **WebSocket Telemetry Hub:**
   - `/ws/student/{student_session_id}`: Receive raw client events (`focus-lost`, `focus-regained`, `fullscreen-exit`, `paste`).
   - `/ws/teacher`: Push live flag events filtered by teacher's active sessions.
 
 #### 2. Student Kiosk Client (Electron + Monaco)
-- [ ] **Kiosk Shell Lockdown:**
+- [x] **Kiosk Shell Lockdown:**
   - Fullscreen enforcement (`fullscreen: true`, `kiosk: true`, `frame: false`).
   - Block DevTools (`webPreferences: { devTools: false }`).
   - Intercept shortcut keys (`F12`, `Ctrl+Shift+I/J/C`, `Ctrl+R`, `F5`).
   - Disable right-click context menu.
   - Handle `leave-full-screen` $\rightarrow$ auto re-maximize window.
-- [ ] **Telemetry Listeners in Electron:**
+- [x] **Telemetry Listeners in Electron:**
   - Window `blur` $\rightarrow$ send `focus-lost` with timestamp.
   - Window `focus` $\rightarrow$ send `focus-regained` with timestamp.
   - Window `leave-full-screen` $\rightarrow$ send `fullscreen-exit`.
-- [ ] **Student Exam UI:**
+- [x] **Student Exam UI:**
   - Join view: input 6-char code, name, roll number.
   - Waiting view: live countdown timer synchronizing with server start time.
   - Exam view: split layout (Left: Problem statement & visible test cases; Right: Monaco Editor).
@@ -126,10 +126,10 @@ Demonstrate a complete, working, end-to-end coding exam on LAN:
   - Paste event interceptor in Monaco editor: captures paste character count and emits telemetry event.
 
 #### 3. Teacher Browser Dashboard (Web)
-- [ ] **Login Screen:** Clean username/password form connecting to `/api/auth/login`.
-- [ ] **Assignment Manager:** Form to create problems with visible and hidden test case tables.
-- [ ] **Session Launcher:** Modal to select assignment, pick start time, and display prominent 6-char access code for lab board projection.
-- [ ] **Live Monitoring View:**
+- [x] **Login Screen:** Clean username/password form connecting to `/api/auth/login`.
+- [x] **Assignment Manager:** Form to create problems with visible and hidden test case tables.
+- [x] **Session Launcher:** Modal to select assignment, pick start time, and display prominent 6-char access code for lab board projection.
+- [x] **Live Monitoring View:**
   - Active students table (Roll No, Name, Status, Last Autosave time).
   - Real-time flag feed powered by WebSocket: shows timestamped cards (`focus-lost`, `paste`, `fullscreen-exit`).
 

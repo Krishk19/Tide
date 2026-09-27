@@ -60,3 +60,38 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+@app.get("/api/system/info")
+def system_info():
+    """Returns local LAN IPs and portal URLs for lab projection."""
+    import socket
+    hostname = socket.gethostname()
+    local_ips = []
+    try:
+        addrs = socket.getaddrinfo(hostname, None)
+        for item in addrs:
+            ip = item[4][0]
+            if ":" not in ip and not ip.startswith("127."):
+                if ip not in local_ips:
+                    local_ips.append(ip)
+    except Exception:
+        pass
+
+    primary_ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        primary_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        if local_ips:
+            primary_ip = local_ips[0]
+
+    return {
+        "status": "online",
+        "hostname": hostname,
+        "primary_lan_ip": primary_ip,
+        "all_ips": local_ips,
+        "student_portal_url": f"http://{primary_ip}:8000/student",
+        "teacher_dashboard_url": f"http://{primary_ip}:8000/dashboard"
+    }
