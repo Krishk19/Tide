@@ -282,6 +282,7 @@ async def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
             "student_name": student.student_name,
             "student_identifier": student.student_identifier,
             "is_reconnect": True,
+            "is_frozen": bool(student.is_frozen),
             "downtime_seconds": delta_seconds,
             "last_saved_at": sub.last_autosaved_at if sub else None
         }
@@ -321,6 +322,7 @@ async def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
         "student_name": student.student_name,
         "student_identifier": student.student_identifier,
         "is_reconnect": False,
+        "is_frozen": False,
         "downtime_seconds": 0,
         "last_saved_at": now
     }

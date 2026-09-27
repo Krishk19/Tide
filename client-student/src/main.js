@@ -1,5 +1,7 @@
 const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
+const net = require('net');
+const dns = require('dns');
 
 let mainWindow;
 
@@ -192,5 +194,50 @@ ipcMain.handle('discover-server', () => {
     }
   });
 });
+
+// Canary Probe for External Internet Connectivity
+function probeExternalInternet() {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let hasResolved = false;
+
+    socket.setTimeout(1200);
+
+    socket.connect(53, '8.8.8.8', () => {
+      if (!hasResolved) {
+        hasResolved = true;
+        try { socket.destroy(); } catch (e) {}
+        resolve(true); // Public internet reachable
+      }
+    });
+
+    socket.on('error', () => {
+      if (!hasResolved) {
+        hasResolved = true;
+        try { socket.destroy(); } catch (e) {}
+        dns.lookup('dns.google', (err) => {
+          resolve(!err);
+        });
+      }
+    });
+
+    socket.on('timeout', () => {
+      if (!hasResolved) {
+        hasResolved = true;
+        try { socket.destroy(); } catch (e) {}
+        resolve(false);
+      }
+    });
+  });
+}
+
+ipcMain.handle('check-internet', async () => {
+  try {
+    return await probeExternalInternet();
+  } catch (e) {
+    return false;
+  }
+});
+
 
 

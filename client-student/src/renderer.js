@@ -10,6 +10,8 @@ let state = {
   ws: null,
   currentLanguage: 'python',
   isSubmitted: false,
+  isFrozen: false,
+  suppressInternetProbeUntil: 0,
   questions: [],
   activeQuestionId: null,
   codes: {},
@@ -243,6 +245,10 @@ function connectTelemetryWebSocket() {
           showDirectWarning(data);
         } else if (data.event === 'force_submit') {
           showSubmittedScreen(data.result);
+        } else if (data.event === 'freeze_exam') {
+          handleExamFrozen(data.reason);
+        } else if (data.event === 'unfreeze_exam') {
+          handleExamUnfrozen(data.reason);
         }
       } catch (e) {
         console.error('Failed to parse incoming WebSocket message', e);
@@ -293,6 +299,8 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
       handleFullscreenExit();
     } else if (event.type === 'focus-lost' || event.type === 'focus-regained') {
       handleFocusChange(event.type, 'electron-main');
+    } else if (event.type === 'internet-detected') {
+      triggerInternetDetected('electron-main');
     } else if (state.studentSessionId) {
       sendTelemetry(event.type, { source: 'electron-main' });
     }
@@ -325,6 +333,142 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
       handleFullscreenExit();
     }
   });
+}
+
+// Exam Freeze & Lockout Lifecycle
+function handleExamFrozen(reason) {
+  if (state.isSubmitted) return;
+  state.isFrozen = true;
+  const overlay = document.getElementById('internetLockoutOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+  }
+  const textarea = document.getElementById('codeEditorTextarea');
+  if (textarea) {
+    textarea.readOnly = true;
+  }
+  if (window.editorInstance) {
+    window.editorInstance.updateOptions({ readOnly: true });
+  }
+  const runBtn = document.getElementById('runTestsBtn');
+  const subBtn = document.getElementById('headerSubmitBtn');
+  if (runBtn) runBtn.disabled = true;
+  if (subBtn) subBtn.disabled = true;
+  console.warn('[EXAM FROZEN]', reason);
+}
+
+function handleExamUnfrozen(reason) {
+  state.isFrozen = false;
+  // Grace period so developer or local tests don't immediately re-freeze
+  state.suppressInternetProbeUntil = Date.now() + 25000;
+  const overlay = document.getElementById('internetLockoutOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  const textarea = document.getElementById('codeEditorTextarea');
+  if (textarea) {
+    textarea.readOnly = false;
+  }
+  if (window.editorInstance) {
+    window.editorInstance.updateOptions({ readOnly: false });
+  }
+  const runBtn = document.getElementById('runTestsBtn');
+  const subBtn = document.getElementById('headerSubmitBtn');
+  if (runBtn) runBtn.disabled = false;
+  if (subBtn) subBtn.disabled = false;
+  showFloatingNotification('Exam Unlocked', 'Evaluator has restored your examination session.', '🔓');
+  console.log('[EXAM UNFROZEN]', reason);
+}
+
+function triggerInternetDetected(source = 'canary-probe') {
+  if (state.isSubmitted || state.isFrozen) return;
+  if (state.suppressInternetProbeUntil && Date.now() < state.suppressInternetProbeUntil) return;
+
+  console.warn(`[SECURITY CRITICAL] External internet detected via ${source}! Freezing exam.`);
+  handleExamFrozen('Unauthorized external internet detected');
+  if (state.studentSessionId) {
+    sendTelemetry('internet-detected', {
+      source: source,
+      reason: 'Active WAN / external internet gateway detected on terminal.'
+    });
+  }
+}
+
+// Active Canary Probe for External Internet Connectivity
+async function checkInternetConnection() {
+  if (!state.studentSessionId || state.isSubmitted || state.isFrozen) return false;
+  if (state.suppressInternetProbeUntil && Date.now() < state.suppressInternetProbeUntil) return false;
+
+  const isExamActive = views.exam.classList.contains('active') || views.countdown.classList.contains('active');
+  if (!isExamActive) return false;
+
+  try {
+    if (window.electronAPI && window.electronAPI.checkInternet) {
+      const isOnline = await window.electronAPI.checkInternet();
+      if (isOnline) {
+        triggerInternetDetected('electron-net-socket');
+        return true;
+      }
+    } else {
+      // Browser canary fetch probe
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      try {
+        await fetch('https://connectivitycheck.gstatic.com/generate_204', {
+          mode: 'no-cors',
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        triggerInternetDetected('browser-http-canary');
+        return true;
+      } catch (err) {
+        clearTimeout(timeoutId);
+      }
+    }
+  } catch (err) {
+    // Offline (expected state in secure exam lab)
+  }
+  return false;
+}
+
+// Periodic Canary Probe Interval (every 4 seconds)
+setInterval(checkInternetConnection, 4000);
+
+// Network online event listener
+window.addEventListener('online', () => {
+  if (state.studentSessionId && !state.isSubmitted && !state.isFrozen) {
+    triggerInternetDetected('browser-online-event');
+  }
+});
+
+// Proctor / Evaluator demo test trigger
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+    e.preventDefault();
+    console.log('[PROCTOR SHORTCUT] Manual internet detection triggered for testing');
+    triggerInternetDetected('proctor-manual-trigger');
+  }
+});
+window.simulateInternetDetection = () => triggerInternetDetected('evaluator-demo-trigger');
+
+function showFloatingNotification(title, desc, icon = 'ℹ️') {
+  let toast = document.getElementById('reconnectToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'reconnectToast';
+    toast.className = 'reconnect-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `
+    <div class="reconnect-toast-icon">${icon}</div>
+    <div class="reconnect-toast-content">
+      <div class="reconnect-toast-title">${title}</div>
+      <div class="reconnect-toast-desc">${desc}</div>
+    </div>
+  `;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), 5000);
 }
 
 // Resume Fullscreen Button Handler
@@ -410,6 +554,9 @@ async function executeJoinFlow() {
 
     if (data.is_reconnect) {
       showReconnectNotification(data.downtime_seconds);
+    }
+    if (data.is_frozen) {
+      handleExamFrozen('Session is currently frozen by evaluator.');
     }
 
     // Update Header
@@ -643,6 +790,10 @@ function loadExamEnvironment(data) {
         if (runBtn && !runBtn.disabled) runBtn.click();
       }
     });
+  }
+
+  if (state.isFrozen) {
+    handleExamFrozen('Session is currently frozen by evaluator.');
   }
 }
 

@@ -61,6 +61,7 @@ class StudentInSession(Base):
     joined_at = Column(DateTime, default=utc_now, nullable=False)
     risk_score = Column(Integer, default=0, nullable=False)
     extra_time_seconds = Column(Integer, default=0, nullable=False)
+    is_frozen = Column(Boolean, default=False, nullable=False)
 
     session = relationship("Session", back_populates="students")
     submissions = relationship("Submission", back_populates="student_session")

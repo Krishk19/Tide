@@ -229,8 +229,8 @@ function connectTeacherWebSocket() {
         prependFlagCard(data.flag);
         // Refresh active student roster if needed
         if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
-      } else if (data.event === 'student_submitted' || data.event === 'risk_score_update') {
-        // Refresh active student roster immediately to show SUBMITTED badge or new Risk Score
+      } else if (data.event === 'student_submitted' || data.event === 'risk_score_update' || data.event === 'student_frozen' || data.event === 'student_unfrozen') {
+        // Refresh active student roster immediately to show SUBMITTED / FROZEN badge or new Risk Score
         if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
       }
     };
@@ -420,12 +420,17 @@ function renderTriageRoster() {
   }
 
   filtered.forEach((st) => {
+    const isFrozen = Boolean(st.is_frozen);
+
     // 1. Table Row
     const tr = document.createElement('tr');
     const autosaveTime = st.last_autosaved_at ? new Date(st.last_autosaved_at).toLocaleTimeString() : 'Never';
-    const statusBadge = st.is_submitted
-      ? '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25);">SUBMITTED</span>'
-      : '<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text);">TAKING EXAM</span>';
+    let statusBadge = '<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text);">TAKING EXAM</span>';
+    if (st.is_submitted) {
+      statusBadge = '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25);">SUBMITTED</span>';
+    } else if (isFrozen) {
+      statusBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.4); font-weight: 700;">❄️ FROZEN</span>';
+    }
 
     const risk = st.risk_score || 0;
     let riskClass = 'risk-clean';
@@ -456,10 +461,15 @@ function renderTriageRoster() {
     const playbackBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Interactive keystroke & growth replay">⏪ Playback</button>`;
     const timelineBtn = `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="openForensicTimeline(${st.id}, '${escapeHtml(st.student_name)}', '${escapeHtml(st.student_identifier)}', ${risk})" title="Chronological audit timeline">📜 Timeline</button>`;
 
+    const freezeToggleBtn = isFrozen
+      ? `<button class="btn btn-primary" style="padding: 2px 8px; font-size: 10px; background: #059669; border-color: #10b981; color: white; font-weight: 600;" onclick="unfreezeStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Unlock student terminal">🔓 Unfreeze Exam</button>`
+      : `<button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: #f87171;" onclick="freezeStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Manually lock student exam">❄️ Freeze</button>`;
+
     const actionsHtml = st.is_submitted
       ? `<div style="display: flex; gap: 4px; align-items: center;"><span style="color: var(--text-tertiary); font-size: 10px; font-family: var(--font-mono);">Done</span>${playbackBtn}${timelineBtn}</div>`
       : `
-        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+          ${freezeToggleBtn}
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px;" onclick="extendStudentTime(${st.id}, 5)" title="Grant +5 minutes extra time">+5m</button>
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--warning);" onclick="openWarnModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Send official warning modal">⚠️ Warn</button>
           <button class="btn btn-secondary" style="padding: 2px 7px; font-size: 10px; color: var(--danger);" onclick="forceSubmitStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Remotely submit exam">🛑 Force</button>
@@ -482,15 +492,21 @@ function renderTriageRoster() {
     // 2. Visual Seat Card
     const seatCard = document.createElement('div');
     seatCard.className = `seat-card zone-${st.zone}`;
+    const frozenBanner = isFrozen
+      ? `<div style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;"><span>❄️ EXAM FROZEN</span><button class="btn btn-primary" style="padding: 1px 6px; font-size: 9px; background: #059669; border-color: #10b981; color: white;" onclick="unfreezeStudent(${st.id}, '${escapeHtml(st.student_name)}')">🔓 Unfreeze</button></div>`
+      : '';
+
     seatCard.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
         <strong style="font-size: 12px; color: var(--text);">${escapeHtml(st.student_name)}</strong>
         <span style="font-size: 10px; font-family: var(--font-mono); color: var(--text-tertiary);">${escapeHtml(st.student_identifier)}</span>
       </div>
+      ${frozenBanner}
       <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3;">${escapeHtml(st.zone_reason || '')}</div>
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 6px;">
         <span style="font-size: 10px; font-family: var(--font-mono);">${st.lines_count || 0} lines</span>
         <div style="display: flex; gap: 4px;">
+          ${isFrozen ? `<button class="btn btn-primary" style="padding: 1px 5px; font-size: 9px; background: #059669; border-color: #10b981; color: white;" onclick="unfreezeStudent(${st.id}, '${escapeHtml(st.student_name)}')" title="Unlock exam">🔓</button>` : ''}
           <button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="openPlaybackModal(${st.id}, '${escapeHtml(st.student_name)}')" title="Replay code">⏪</button>
           <button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="openForensicTimeline(${st.id}, '${escapeHtml(st.student_name)}', '${escapeHtml(st.student_identifier)}', ${risk})" title="Audit timeline">📜</button>
           ${!st.is_submitted ? `<button class="btn btn-secondary" style="padding: 1px 5px; font-size: 9px;" onclick="extendStudentTime(${st.id}, 5)" title="+5m">+5m</button>` : ''}
@@ -564,7 +580,7 @@ function prependFlagCard(flag, isNew = true) {
   if (feed.innerText.includes('Awaiting telemetry')) feed.innerHTML = '';
 
   const card = document.createElement('div');
-  const isCritical = flag.type === 'correlated-cheat-attempt' || flag.severity === 'critical';
+  const isCritical = flag.type === 'correlated-cheat-attempt' || flag.type === 'internet-detected' || flag.severity === 'critical';
   const isDanger = ['fullscreen-exit', 'connection-lost', 'paste'].includes(flag.type) || isCritical;
   card.className = `flag-card ${isCritical ? 'critical' : isDanger ? 'danger' : 'info'}`;
   card.id = `flag-card-${flag.id}`;
@@ -599,9 +615,14 @@ function prependFlagCard(flag, isNew = true) {
     }
     if (isNew) playAlertChime();
   }
+  if (flag.type === 'internet-detected') {
+    descText = `🚨 <strong>UNAUTHORIZED EXTERNAL INTERNET DETECTED:</strong> Student terminal connected to external network (Wi-Fi/Hotspot). <strong>Exam automatically FROZEN.</strong>`;
+    if (isNew) playAlertChime();
+  }
 
   const isReviewed = flag.status !== 'open';
   const notesText = flag.notes ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"><em>Note: ${escapeHtml(flag.notes)}</em></div>` : '';
+  const isViolativeFlag = ['correlated-cheat-attempt', 'internet-detected', 'fullscreen-exit', 'paste', 'focus-lost', 'connection-lost'].includes(flag.type);
 
   card.innerHTML = `
     <div class="flag-header">
@@ -618,8 +639,17 @@ function prependFlagCard(flag, isNew = true) {
         isReviewed
           ? `<span style="font-size: 11px; color: ${flag.status === 'escalated' ? 'var(--danger)' : 'var(--success)'}; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
           : `
+            ${
+              flag.type === 'internet-detected'
+                ? `<button class="btn btn-primary" style="padding: 3px 8px; font-size: 11px; background: #059669; border-color: #10b981; color: white; font-weight: 600;" onclick="unfreezeStudent(${flag.student_session_id}, '${escapeHtml(flag.student_name || 'Student')}')">🔓 Unfreeze Exam</button>`
+                : ''
+            }
             <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="dismissFlag(${flag.id})">Dismiss</button>
-            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.25);" onclick="escalateFlag(${flag.id})">Escalate</button>
+            ${
+              isViolativeFlag
+                ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.25);" onclick="escalateFlag(${flag.id})">Escalate</button>`
+                : ''
+            }
           `
       }
     </div>
@@ -1149,6 +1179,52 @@ window.forceSubmitStudent = async function(studentId, studentName) {
     loadActiveSessionRoster(state.selectedSessionId);
   } catch (err) {
     alert(`Error force submitting: ${err.message}`);
+  }
+};
+
+window.unfreezeStudent = async function(studentId, studentName) {
+  if (!confirm(`Unfreeze and restart exam for ${studentName}?\nEnsure the unauthorized network device/hotspot is disconnected.`)) {
+    return;
+  }
+  if (!state.selectedSessionId || !state.token) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/unfreeze`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${state.token}`,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to unfreeze student');
+    }
+    loadActiveSessionRoster(state.selectedSessionId);
+  } catch (err) {
+    alert(`Error unfreezing student: ${err.message}`);
+  }
+};
+
+window.freezeStudent = async function(studentId, studentName) {
+  if (!confirm(`Remotely freeze and lock the exam for ${studentName}?`)) {
+    return;
+  }
+  if (!state.selectedSessionId || !state.token) return;
+
+  try {
+    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/freeze`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${state.token}`,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to freeze student');
+    }
+    loadActiveSessionRoster(state.selectedSessionId);
+  } catch (err) {
+    alert(`Error freezing student: ${err.message}`);
   }
 };
 

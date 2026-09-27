@@ -85,7 +85,11 @@ def calculate_classroom_triage(
         zone = "green"
         reason = "Progressing normally"
 
-        if risk >= 60 or has_correlated or critical_flags >= 2:
+        if st.is_frozen:
+            zone = "red"
+            red_cnt += 1
+            reason = "EXAM FROZEN: Unauthorized external internet detected"
+        elif risk >= 60 or has_correlated or critical_flags >= 2:
             zone = "red"
             red_cnt += 1
             if has_correlated:
@@ -126,6 +130,7 @@ def calculate_classroom_triage(
             "chars_count": chars_cnt,
             "flag_count": flags_cnt,
             "is_submitted": is_sub,
+            "is_frozen": bool(st.is_frozen),
             "extra_time_seconds": st.extra_time_seconds or 0,
             "inactive_seconds": inactive_secs,
             "last_autosaved_at": last_active.isoformat()

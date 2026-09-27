@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class TelemetryEvent(BaseModel):
     student_session_id: int
-    type: str = Field(..., pattern="^(focus-lost|focus-regained|fullscreen-exit|paste|connection-lost|reconnected|correlated-cheat-attempt)$")
+    type: str = Field(..., pattern="^(focus-lost|focus-regained|fullscreen-exit|paste|connection-lost|reconnected|correlated-cheat-attempt|internet-detected)$")
     metadata: Optional[dict[str, Any]] = None
     ts: Optional[datetime] = None
 

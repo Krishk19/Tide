@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isFullScreen: () => ipcRenderer.invoke('is-fullscreen'),
   setFullScreen: () => ipcRenderer.invoke('set-fullscreen'),
   discoverServer: () => ipcRenderer.invoke('discover-server'),
+  checkInternet: () => ipcRenderer.invoke('check-internet'),
 });

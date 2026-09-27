@@ -94,6 +94,7 @@ def calculate_risk_score(db: Session, student_session_id: int) -> int:
     connection_lost_cnt = 0
     total_paste_chars = 0
     correlated_cnt = 0
+    internet_detected_cnt = 0
 
     for f in flags:
         if f.status == "dismissed":
@@ -109,6 +110,8 @@ def calculate_risk_score(db: Session, student_session_id: int) -> int:
             total_paste_chars += (f.flag_metadata or {}).get("length", 0)
         elif f.type == "correlated-cheat-attempt":
             correlated_cnt += 1
+        elif f.type == "internet-detected":
+            internet_detected_cnt += 1
 
     score = 0
     score += min(25, focus_lost_cnt * 5)
@@ -116,6 +119,7 @@ def calculate_risk_score(db: Session, student_session_id: int) -> int:
     score += connection_lost_cnt * 10
     score += min(25, total_paste_chars // 25)
     score += correlated_cnt * 40
+    score += internet_detected_cnt * 50
 
     final_score = min(100, max(0, score))
 

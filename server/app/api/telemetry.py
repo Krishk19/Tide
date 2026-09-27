@@ -116,7 +116,7 @@ def record_flag_in_db(
 
     # Determine default severity
     if not severity:
-        if flag_type == "correlated-cheat-attempt":
+        if flag_type in ("correlated-cheat-attempt", "internet-detected"):
             severity = "critical"
         elif flag_type in ("fullscreen-exit", "connection-lost"):
             severity = "high"
@@ -126,6 +126,9 @@ def record_flag_in_db(
             severity = "medium"
         else:
             severity = "info"
+
+    if flag_type == "internet-detected":
+        student.is_frozen = True
 
     flag = Flag(
         student_session_id=student_session_id,

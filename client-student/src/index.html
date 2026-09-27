@@ -289,6 +289,30 @@
     </div>
   </div>
 
+  <!-- Unauthorized External Internet Freeze Overlay -->
+  <div class="modal-overlay" id="internetLockoutOverlay" style="z-index: 10000; background: rgba(5, 5, 8, 0.96);">
+    <div class="modal-content" style="border-color: #ef4444; max-width: 500px; box-shadow: 0 0 50px rgba(239, 68, 68, 0.25);">
+      <div style="font-size: 38px; margin-bottom: 12px; animation: bounce 2s infinite;">🚨</div>
+      <div class="badge" style="background: rgba(239, 68, 68, 0.18); color: #f87171; border-color: rgba(239, 68, 68, 0.4); margin-bottom: 14px; display: inline-block; font-weight: 700; letter-spacing: 0.08em;">CRITICAL INTEGRITY VIOLATION</div>
+      <h2 style="color: #f87171; font-size: 20px; font-weight: 800; margin-bottom: 10px;">Exam Frozen: External Internet Detected</h2>
+      <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin-bottom: 16px;">
+        This terminal connected to an unauthorized external network (Wi-Fi, mobile hotspot, or USB tethering). In accordance with exam security policy, your examination has been <strong style="color: #f87171;">immediately frozen</strong>.
+      </p>
+      <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 14px; text-align: left; margin-bottom: 20px;">
+        <div style="font-size: 12px; font-weight: 600; color: #fda4af; margin-bottom: 6px;">Protocol Required:</div>
+        <ol style="font-size: 12px; color: var(--text-secondary); padding-left: 18px; margin: 0; line-height: 1.5;">
+          <li>Immediately disconnect all external Wi-Fi, hotspot, or USB tethering devices.</li>
+          <li>Remain at your workstation and notify the laboratory proctor / evaluator.</li>
+          <li><strong style="color: #fca5a5;">This examination can ONLY be unfreezed and restarted by the evaluator.</strong></li>
+        </ol>
+      </div>
+      <div id="internetLockoutStatus" style="font-size: 12px; font-family: var(--font-mono); color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span class="loading-spinner" style="width: 14px; height: 14px; border: 2px solid rgba(239,68,68,0.3); border-top-color: #ef4444; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite;"></span>
+        Awaiting evaluator remote unfreeze...
+      </div>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html>

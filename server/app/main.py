@@ -63,6 +63,11 @@ def upgrade_schema():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE students_in_session ADD COLUMN is_frozen BOOLEAN DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
 
 upgrade_schema()
 

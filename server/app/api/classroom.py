@@ -10,6 +10,7 @@ from app.core.security import get_current_teacher
 from app.models.entities import Teacher, Session as ExamSession, StudentInSession, Submission, Flag, Assignment
 from app.api.telemetry import manager, record_flag_in_db
 from app.services.executor import evaluate_submission
+from app.services.heuristics import calculate_risk_score
 
 router = APIRouter(prefix="/sessions", tags=["Remote Classroom Control"])
 
@@ -393,4 +394,170 @@ def get_playback_history(
         student_id=student_id,
         teacher_id=current_teacher.id
     )
+
+
+@router.post("/{session_id}/students/{student_id}/unfreeze")
+async def unfreeze_student_exam(
+    session_id: int,
+    student_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """
+    Evaluator remotely unlocks and unfreezes a student whose exam was frozen
+    due to unauthorized external internet detection or manual lock.
+    Dismisses internet-detected flags, recalculates risk score, and pushes unfreeze via WebSocket.
+    """
+    session = db.query(ExamSession).filter(
+        ExamSession.id == session_id,
+        ExamSession.teacher_id == current_teacher.id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or unauthorized")
+
+    student = db.query(StudentInSession).filter(
+        StudentInSession.id == student_id,
+        StudentInSession.session_id == session.id
+    ).first()
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found in this session")
+
+    student.is_frozen = False
+    now = datetime.now(timezone.utc)
+
+    # Dismiss any open internet-detected flags so risk score reflects evaluator resolution
+    internet_flags = db.query(Flag).filter(
+        Flag.student_session_id == student.id,
+        Flag.type == "internet-detected",
+        Flag.status == "open"
+    ).all()
+    for f in internet_flags:
+        f.status = "dismissed"
+        f.notes = f"Unfrozen by evaluator: {current_teacher.name or current_teacher.username}"
+        f.reviewed_by = current_teacher.id
+        f.reviewed_at = now
+
+    # Log forensic unfreeze flag in audit trail
+    unfreeze_flag = Flag(
+        student_session_id=student.id,
+        type="exam-unfrozen",
+        severity="info",
+        flag_metadata={
+            "action": "unfreeze",
+            "unfrozen_by": current_teacher.name or current_teacher.username,
+            "reason": "Evaluator verified network isolation and unlocked exam."
+        },
+        ts=now,
+        status="dismissed",
+        reviewed_by=current_teacher.id,
+        reviewed_at=now
+    )
+    db.add(unfreeze_flag)
+    db.commit()
+    db.refresh(student)
+
+    # Recalculate dynamic risk score
+    new_risk = calculate_risk_score(db, student.id)
+
+    # Push unfreeze command to student kiosk via WebSocket
+    await manager.send_to_student(student.id, {
+        "event": "unfreeze_exam",
+        "reason": "Exam unlocked by evaluator",
+        "unfrozen_at": now.isoformat()
+    })
+
+    # Broadcast to teacher feed
+    await manager.broadcast_to_teacher(current_teacher.id, {
+        "event": "student_unfrozen",
+        "session_id": session.id,
+        "student_session_id": student.id,
+        "student_name": student.student_name,
+        "student_identifier": student.student_identifier,
+        "is_frozen": False,
+        "risk_score": new_risk
+    })
+
+    return {
+        "success": True,
+        "session_id": session.id,
+        "student_id": student.id,
+        "is_frozen": False,
+        "risk_score": new_risk,
+        "message": f"Exam successfully unfreezed for {student.student_name}"
+    }
+
+
+@router.post("/{session_id}/students/{student_id}/freeze")
+async def freeze_student_exam(
+    session_id: int,
+    student_id: int,
+    current_teacher: Teacher = Depends(get_current_teacher),
+    db: Session = Depends(get_db)
+):
+    """
+    Evaluator manually freezes/locks a student exam.
+    Pushes freeze command to student kiosk via WebSocket.
+    """
+    session = db.query(ExamSession).filter(
+        ExamSession.id == session_id,
+        ExamSession.teacher_id == current_teacher.id
+    ).first()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or unauthorized")
+
+    student = db.query(StudentInSession).filter(
+        StudentInSession.id == student_id,
+        StudentInSession.session_id == session.id
+    ).first()
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found in this session")
+
+    student.is_frozen = True
+    now = datetime.now(timezone.utc)
+
+    freeze_flag = Flag(
+        student_session_id=student.id,
+        type="exam-frozen",
+        severity="high",
+        flag_metadata={
+            "action": "freeze",
+            "frozen_by": current_teacher.name or current_teacher.username,
+            "reason": "Exam manually frozen by instructor."
+        },
+        ts=now,
+        status="open"
+    )
+    db.add(freeze_flag)
+    db.commit()
+    db.refresh(student)
+
+    new_risk = calculate_risk_score(db, student.id)
+
+    # Push freeze command to student kiosk via WebSocket
+    await manager.send_to_student(student.id, {
+        "event": "freeze_exam",
+        "reason": "Exam locked by evaluator.",
+        "frozen_at": now.isoformat()
+    })
+
+    # Broadcast to teacher feed
+    await manager.broadcast_to_teacher(current_teacher.id, {
+        "event": "student_frozen",
+        "session_id": session.id,
+        "student_session_id": student.id,
+        "student_name": student.student_name,
+        "student_identifier": student.student_identifier,
+        "is_frozen": True,
+        "risk_score": new_risk
+    })
+
+    return {
+        "success": True,
+        "session_id": session.id,
+        "student_id": student.id,
+        "is_frozen": True,
+        "risk_score": new_risk,
+        "message": f"Exam frozen for {student.student_name}"
+    }
+
 
