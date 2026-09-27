@@ -101,6 +101,19 @@ def record_flag_in_db(
     if event_time.tzinfo is None:
         event_time = event_time.replace(tzinfo=timezone.utc)
 
+    # Deduplicate rapid focus-lost, focus-regained, or fullscreen-exit signals within 3 seconds
+    if flag_type in ("focus-lost", "focus-regained", "fullscreen-exit"):
+        last_same_flag = db.query(Flag).filter(
+            Flag.student_session_id == student_session_id,
+            Flag.type == flag_type
+        ).order_by(Flag.ts.desc()).first()
+        if last_same_flag and last_same_flag.ts:
+            l_ts = last_same_flag.ts
+            if l_ts.tzinfo is None:
+                l_ts = l_ts.replace(tzinfo=timezone.utc)
+            if abs((event_time - l_ts).total_seconds()) < 3.0:
+                return None, None, teacher_id, student.risk_score or 0
+
     # Determine default severity
     if not severity:
         if flag_type == "correlated-cheat-attempt":

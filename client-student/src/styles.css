@@ -313,7 +313,9 @@ header {
 /* --------------------------------------------------------------------------
    6. View 1: Centered Architectural Join Terminal
    -------------------------------------------------------------------------- */
-#joinView {
+#joinView,
+#waitingView,
+#submittedView {
   align-items: center;
   justify-content: center;
   background: var(--bg-app);

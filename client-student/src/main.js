@@ -116,7 +116,12 @@ app.on('window-all-closed', () => {
 
 // IPC Handler to exit when test is submitted
 ipcMain.handle('app-exit', () => {
-  app.quit();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setKiosk(false);
+    mainWindow.setFullScreen(false);
+    mainWindow.destroy();
+  }
+  app.exit(0);
 });
 
 // IPC Handler to check fullscreen status

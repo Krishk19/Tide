@@ -267,6 +267,23 @@ function handleFullscreenExit() {
   }
 }
 
+// Focus event debouncing state to prevent duplicate Alt-Tab signals
+let lastFocusEventType = null;
+let lastFocusEventTime = 0;
+
+function handleFocusChange(type, source) {
+  const now = Date.now();
+  if (type === lastFocusEventType && (now - lastFocusEventTime) < 2500) {
+    return; // Suppress duplicate focus transition within 2.5 seconds
+  }
+  lastFocusEventType = type;
+  lastFocusEventTime = now;
+  console.log(`[Focus Telemetry] ${type} from ${source}`);
+  if (state.studentSessionId) {
+    sendTelemetry(type, { source: source });
+  }
+}
+
 // Electron Main Process IPC Telemetry Hook
 if (window.electronAPI && window.electronAPI.onKioskEvent) {
   window.electronAPI.onKioskEvent((event) => {
@@ -274,6 +291,8 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
     console.log('Kiosk Security Event:', event);
     if (event.type === 'fullscreen-exit') {
       handleFullscreenExit();
+    } else if (event.type === 'focus-lost' || event.type === 'focus-regained') {
+      handleFocusChange(event.type, 'electron-main');
     } else if (state.studentSessionId) {
       sendTelemetry(event.type, { source: 'electron-main' });
     }
@@ -282,24 +301,20 @@ if (window.electronAPI && window.electronAPI.onKioskEvent) {
   // Web Browser / Kiosk Fallback listeners (works in Chrome, Edge, Firefox)
   window.addEventListener('blur', () => {
     if (state.isSubmitted) return;
-    console.log('[Browser Telemetry] focus-lost');
-    if (state.studentSessionId) sendTelemetry('focus-lost', { source: 'browser-blur' });
+    handleFocusChange('focus-lost', 'browser-blur');
   });
 
   window.addEventListener('focus', () => {
     if (state.isSubmitted) return;
-    console.log('[Browser Telemetry] focus-regained');
-    if (state.studentSessionId) sendTelemetry('focus-regained', { source: 'browser-focus' });
+    handleFocusChange('focus-regained', 'browser-focus');
   });
 
   document.addEventListener('visibilitychange', () => {
     if (state.isSubmitted) return;
     if (document.hidden) {
-      console.log('[Browser Telemetry] tab-switched-out');
-      if (state.studentSessionId) sendTelemetry('focus-lost', { source: 'tab-hidden' });
+      handleFocusChange('focus-lost', 'tab-hidden');
     } else {
-      console.log('[Browser Telemetry] tab-switched-in');
-      if (state.studentSessionId) sendTelemetry('focus-regained', { source: 'tab-visible' });
+      handleFocusChange('focus-regained', 'tab-visible');
     }
   });
 
@@ -901,6 +916,14 @@ document.getElementById('exitKioskBtn').addEventListener('click', () => {
   if (window.electronAPI && window.electronAPI.exitApp) {
     window.electronAPI.exitApp();
   } else {
-    window.close();
+    // In browser: attempt close, or cleanly reset session and redirect to terminal join
+    try {
+      window.close();
+    } catch (e) {}
+    sessionStorage.clear();
+    localStorage.removeItem('tide_student_session');
+    setTimeout(() => {
+      window.location.href = '/student';
+    }, 200);
   }
 });
