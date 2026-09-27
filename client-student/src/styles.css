@@ -1,28 +1,27 @@
 /* ==========================================================================
-   TIDE ASSESSMENT KIOSK — SWISS NEUTRAL OBSIDIAN DESIGN SYSTEM
-   Designed for focus, architectural clarity, and physical kiosk durability.
+   TIDE ASSESSMENT KIOSK — HUMAN-DESIGNED DUAL-THEME ARCHITECTURE
+   Inspired by CodeSignal, Linear, and Swiss Editorial Craft.
+   Supports full Light Mode and Dark Mode with instant toggle.
    ========================================================================== */
 
-:root {
-  /* Surfaces: Deep warm graphite & carbon */
+/* Dark Mode Tokens (Default) */
+:root, [data-theme="dark"] {
   --bg-app: #090a0d;
   --bg-panel: #111216;
   --bg-panel-elevated: #16181f;
-  --bg-subtle: #1c1e26;
-  --bg-well: #0c0d11;
+  --bg-subtle: #191b22;
+  --bg-well: #0d0e12;
+  --bg-input: #0c0d11;
 
-  /* Borders: Hairline precision with neutral translucency */
   --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(255, 255, 255, 0.35);
+  --border-subtle: rgba(255, 255, 255, 0.13);
+  --border-focus: rgba(255, 255, 255, 0.4);
 
-  /* Typography: Stark architectural neutral contrast */
   --text-primary: #ededed;
-  --text-secondary: #9ca3af;
-  --text-tertiary: #6b7280;
-  --text-muted: #525866;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-muted: #52525b;
 
-  /* Functional Accents: Strictly reserved for status/actions */
   --btn-primary-bg: #f4f4f5;
   --btn-primary-text: #090a0d;
   --btn-primary-hover: #ffffff;
@@ -31,14 +30,53 @@
   --btn-secondary-border: rgba(255, 255, 255, 0.1);
   --btn-secondary-hover: rgba(255, 255, 255, 0.09);
 
-  --accent-cyan: #38bdf8;
+  --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7);
+  --editor-bg: #0d0e12;
+  --editor-text: #e4e4e7;
+
   --status-emerald: #10b981;
   --status-amber: #f59e0b;
   --status-rose: #f43f5e;
+  --status-cyan: #38bdf8;
 
-  /* Fonts */
-  --font-ui: -apple-system, BlinkMacSystemFont, "Geist", "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Consolas, "Courier New", monospace;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Geist", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+
+/* Light Mode Tokens */
+[data-theme="light"] {
+  --bg-app: #f4f5f7;
+  --bg-panel: #ffffff;
+  --bg-panel-elevated: #fafafa;
+  --bg-subtle: #f0f2f5;
+  --bg-well: #f8fafc;
+  --bg-input: #ffffff;
+
+  --border-hairline: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.14);
+  --border-focus: #0f172a;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+
+  --btn-primary-bg: #0f172a;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #1e293b;
+
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-border: rgba(0, 0, 0, 0.12);
+  --btn-secondary-hover: #f1f5f9;
+
+  --card-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --editor-bg: #ffffff;
+  --editor-text: #1e293b;
+
+  --status-emerald: #059669;
+  --status-amber: #d97706;
+  --status-rose: #e11d48;
+  --status-cyan: #0284c7;
 }
 
 * {
@@ -48,7 +86,6 @@
   user-select: none;
 }
 
-/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -57,11 +94,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--border-subtle);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--text-muted);
 }
 
 body {
@@ -72,22 +109,23 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ==========================================================================
-   Global Kiosk Telemetry Header
+   Header Bar
    ========================================================================== */
 header {
-  height: 48px;
+  height: 52px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 20px;
   z-index: 100;
+  transition: background-color 0.2s ease;
 }
 
 .logo-area {
@@ -96,24 +134,36 @@ header {
   gap: 12px;
 }
 
-.logo-title {
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-primary);
+.logo-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--text-primary);
+  color: var(--bg-app);
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: -0.05em;
 }
 
-.logo-title::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-primary);
+.logo-title {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.logo-title span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .badge {
@@ -122,11 +172,17 @@ header {
   color: var(--text-secondary);
   border: 1px solid var(--border-hairline);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 3px 8px;
   border-radius: 4px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .autosave-indicator {
@@ -136,7 +192,7 @@ header {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-subtle);
   border: 1px solid var(--border-hairline);
   padding: 4px 10px;
   border-radius: 4px;
@@ -147,7 +203,29 @@ header {
   height: 6px;
   border-radius: 50%;
   background-color: var(--status-emerald);
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 6px var(--status-emerald);
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
 }
 
 /* ==========================================================================
@@ -164,52 +242,187 @@ header {
 }
 
 /* ==========================================================================
-   View 1: Join Assessment Screen (Monolithic Focus)
+   View 1: Dual-Zone Kiosk Stage
    ========================================================================== */
-.center-card-view {
+.kiosk-stage {
   flex: 1;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Left Zone: Assessment Context & Security Readiness */
+.kiosk-left-panel {
+  padding: 48px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--bg-well);
+  border-right: 1px solid var(--border-hairline);
+}
+
+.kiosk-institution-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.pulse-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-emerald);
+}
+
+.kiosk-hero-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  line-height: 1.25;
+  margin-bottom: 12px;
+}
+
+.kiosk-hero-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+  max-width: 520px;
+}
+
+/* Readiness Checklist Card */
+.readiness-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.readiness-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 14px;
+}
+
+.readiness-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.readiness-item:last-child {
+  margin-bottom: 0;
+}
+
+.readiness-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--status-emerald);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: radial-gradient(circle at 50% 40%, #15171e 0%, var(--bg-app) 70%);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
-.join-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 40px 36px;
-  width: 100%;
-  max-width: 440px;
-  text-align: center;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
-  position: relative;
-}
-
-.join-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 20%;
-  right: 20%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-}
-
-.join-card h1 {
-  font-size: 20px;
+.readiness-name {
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
+}
+
+.readiness-sub {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* Exam Code of Conduct */
+.rules-summary {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+
+.rules-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.rules-list {
+  list-style: none;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.rules-list li::before {
+  content: "•";
+  color: var(--text-muted);
+  display: inline-block;
+  width: 1em;
+  margin-left: -0.2em;
+}
+
+/* Right Zone: Authentication Form */
+.kiosk-right-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: var(--bg-app);
+}
+
+.auth-box {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-hairline);
+  border-radius: 12px;
+  padding: 36px 32px;
+  box-shadow: var(--card-shadow);
+}
+
+.auth-header {
+  margin-bottom: 24px;
+}
+
+.auth-header h3 {
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
   margin-bottom: 6px;
 }
 
-.join-card p {
-  color: var(--text-secondary);
+.auth-header p {
   font-size: 13px;
+  color: var(--text-secondary);
   line-height: 1.5;
-  margin-bottom: 28px;
 }
 
 .form-group {
@@ -221,23 +434,23 @@ header {
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 7px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
 }
 
 input, select {
   width: 100%;
-  background: var(--bg-well);
-  border: 1px solid var(--border-hairline);
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
   color: var(--text-primary);
-  padding: 11px 13px;
+  padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
   font-family: var(--font-ui);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 input:focus, select:focus {
@@ -249,11 +462,23 @@ input::placeholder {
   color: var(--text-muted);
 }
 
+.input-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 5px;
+}
+
+/* Access Code Big Monospace Input */
+.code-slot-wrapper {
+  position: relative;
+}
+
 input.code-input {
   font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.35em;
   text-align: center;
   text-transform: uppercase;
   padding: 12px 10px;
@@ -261,26 +486,23 @@ input.code-input {
   border: 1px solid var(--border-subtle);
 }
 
-input.code-input:focus {
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
-}
-
-/* Neutral High-Contrast Primary Button */
+/* Buttons */
 .btn-primary {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
   border: none;
-  padding: 12px 20px;
+  padding: 12px 18px;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.02em;
   cursor: pointer;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   margin-top: 10px;
-  transition: background 0.15s ease, transform 0.1s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
 }
 
 .btn-primary:hover {
@@ -297,7 +519,6 @@ input.code-input:focus {
   transform: none;
 }
 
-/* Secondary Button */
 .btn-secondary {
   background: var(--btn-secondary-bg);
   color: var(--text-primary);
@@ -312,14 +533,10 @@ input.code-input:focus {
 
 .btn-secondary:hover {
   background: var(--btn-secondary-hover);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-subtle);
 }
 
-.btn-secondary:active {
-  transform: translateY(1px);
-}
-
-.btn-success {
+.btn-success, .btn-submit {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
   border: none;
@@ -331,16 +548,26 @@ input.code-input:focus {
   transition: all 0.15s ease;
 }
 
-.btn-success:hover {
-  background: #ffffff;
+.server-config-toggle {
+  text-align: center;
+  margin-top: 18px;
 }
 
-.btn-success:active {
-  transform: translateY(1px);
+.server-config-toggle button {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.server-config-toggle button:hover {
+  color: var(--text-primary);
 }
 
 /* ==========================================================================
-   View 2: Countdown Screen (Architectural Precision Timer)
+   View 2: Countdown Screen
    ========================================================================== */
 .countdown-box {
   background: var(--bg-well);
@@ -351,16 +578,16 @@ input.code-input:focus {
 }
 
 .countdown-digits {
-  font-size: 44px;
-  font-weight: 600;
+  font-size: 48px;
+  font-weight: 700;
   font-family: var(--font-mono);
   color: var(--text-primary);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   font-variant-numeric: tabular-nums;
 }
 
 /* ==========================================================================
-   View 3: Split Exam Workspace (Left: Problem, Right: Code)
+   View 3: Active Exam Split Workspace
    ========================================================================== */
 #examView {
   flex-direction: row;
@@ -371,25 +598,72 @@ input.code-input:focus {
   border-right: 1px solid var(--border-hairline);
   display: flex;
   flex-direction: column;
-  background: var(--bg-app);
+  background: var(--bg-panel);
   overflow-y: auto;
+}
+
+.panel-tab-bar {
+  height: 40px;
+  background: var(--bg-well);
+  border-bottom: 1px solid var(--border-hairline);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 6px;
+}
+
+.panel-tab {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.panel-tab.active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-hairline);
 }
 
 .problem-content {
   padding: 28px 24px;
 }
 
+.problem-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
 .problem-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 16px;
   color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.problem-meta-chips {
+  display: flex;
+  gap: 8px;
+}
+
+.meta-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-hairline);
 }
 
 .problem-statement {
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 13.5px;
+  line-height: 1.7;
   color: var(--text-secondary);
   white-space: pre-wrap;
   margin-bottom: 28px;
@@ -398,15 +672,15 @@ input.code-input:focus {
 
 .test-cases-section h3 {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 12px;
-  color: var(--text-muted);
+  margin-bottom: 14px;
+  color: var(--text-tertiary);
 }
 
 .test-case-card {
-  background: var(--bg-panel);
+  background: var(--bg-well);
   border: 1px solid var(--border-hairline);
   border-radius: 6px;
   padding: 14px;
@@ -414,17 +688,17 @@ input.code-input:focus {
 }
 
 .tc-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
   margin-bottom: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
 }
 
 .tc-value {
   font-family: var(--font-mono);
-  background: var(--bg-well);
+  background: var(--bg-input);
   border: 1px solid var(--border-hairline);
   padding: 8px 10px;
   border-radius: 4px;
@@ -434,9 +708,7 @@ input.code-input:focus {
   white-space: pre-wrap;
 }
 
-/* ==========================================================================
-   Right Panel: Code Editor + Execution Console
-   ========================================================================== */
+/* Right Panel: IDE & Terminal Execution Console */
 .right-panel {
   width: 56%;
   display: flex;
@@ -458,22 +730,17 @@ input.code-input:focus {
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: #0d0e12;
-}
-
-#codeEditor {
-  width: 100%;
-  height: 100%;
+  background: var(--editor-bg);
 }
 
 #codeEditorTextarea {
   width: 100%;
   height: 100%;
-  background: #0d0e12;
-  color: #dcdcdc;
+  background: var(--editor-bg);
+  color: var(--editor-text);
   font-family: var(--font-mono);
-  font-size: 13px;
-  padding: 18px;
+  font-size: 13.5px;
+  padding: 18px 20px;
   border: none;
   resize: none;
   outline: none;
@@ -482,9 +749,9 @@ input.code-input:focus {
   user-select: text;
 }
 
-/* Bottom Console Drawer */
+/* Tabbed Execution Console */
 .console-drawer {
-  height: 190px;
+  height: 200px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-hairline);
   display: flex;
@@ -492,8 +759,8 @@ input.code-input:focus {
 }
 
 .console-header {
-  height: 34px;
-  background: var(--bg-panel-elevated);
+  height: 36px;
+  background: var(--bg-well);
   border-bottom: 1px solid var(--border-hairline);
   display: flex;
   justify-content: space-between;
@@ -503,7 +770,7 @@ input.code-input:focus {
 
 .console-title {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
@@ -520,22 +787,14 @@ input.code-input:focus {
   user-select: text;
 }
 
-.action-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ==========================================================================
-   Modals & Overlays
-   ========================================================================== */
+/* Modals */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(4, 5, 8, 0.85);
+  background: rgba(4, 5, 8, 0.7);
   backdrop-filter: blur(8px);
   display: none;
   align-items: center;
@@ -546,18 +805,73 @@ input.code-input:focus {
 .modal-content {
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 32px 28px;
-  max-width: 420px;
+  max-width: 440px;
   width: 100%;
   text-align: center;
-  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.5);
 }
 
 .modal-content h2 {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 8px;
   letter-spacing: -0.01em;
 }
+
+/* Reconnect Floating Toast Notification */
+.reconnect-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-panel-elevated);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 2000;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  max-width: 400px;
+}
+
+.reconnect-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.reconnect-toast-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.reconnect-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.reconnect-toast-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+

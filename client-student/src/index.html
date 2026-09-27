@@ -1,65 +1,131 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tide Assessment Kiosk</title>
+  <title>Tide Secure Assessment Kiosk</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <!-- Global Kiosk Header -->
   <header>
     <div class="logo-area">
-      <div class="logo-title">Tide Kiosk</div>
-      <div class="badge" id="sessionBadge">DISCONNECTED</div>
+      <div class="logo-mark">T</div>
+      <div class="logo-title">Tide <span>Assessment Kiosk</span></div>
+      <div class="badge" id="sessionBadge">STANDBY</div>
     </div>
-    <div style="display: flex; align-items: center; gap: 16px;">
-      <div id="studentInfoBadge" style="font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary); display: none;"></div>
+    <div class="header-controls">
+      <div id="studentInfoBadge" style="display: none;"></div>
       <div class="autosave-indicator" id="autosaveIndicator" style="display: none;">
         <div class="pulse-dot"></div>
         <span id="autosaveText">Autosaved</span>
       </div>
-      <button class="btn-success" id="headerSubmitBtn" style="display: none;">Submit Exam</button>
+      <!-- Dual-Theme Switcher -->
+      <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Light / Dark Mode">
+        <span id="themeToggleText">☀ Light</span>
+      </button>
+      <button class="btn-submit" id="headerSubmitBtn" style="display: none;">Submit Assessment</button>
     </div>
   </header>
 
-  <!-- View 1: Join Assessment -->
+  <!-- View 1: Dual-Zone Kiosk Stage -->
   <div class="view-container active" id="joinView">
-    <div class="center-card-view">
-      <div class="join-card">
-        <h1>Assessment Access</h1>
-        <p>Laboratory examination terminal — secure lockdown active</p>
-        
-        <div class="form-group">
-          <label>6-Character Access Code</label>
-          <input type="text" class="code-input" id="accessCodeInput" maxlength="6" placeholder="TID942" autofocus />
+    <div class="kiosk-stage">
+      
+      <!-- Left Zone: Workstation & Security Readiness -->
+      <div class="kiosk-left-panel">
+        <div class="kiosk-institution-badge">
+          <span class="pulse-indicator"></span>
+          <span>EXAMINATION WORKSTATION · SECURE ENCLAVE</span>
+        </div>
+        <h2 class="kiosk-hero-title">Academic Assessment Terminal</h2>
+        <p class="kiosk-hero-desc">
+          This terminal operates in locked-down kiosk mode. Window switching, unauthorized clipboard transfers, and external monitors are audited continuously.
+        </p>
+
+        <!-- System Readiness Checklist -->
+        <div class="readiness-card">
+          <div class="readiness-title">Workstation Integrity Status</div>
+          <div class="readiness-item">
+            <span class="readiness-icon">✓</span>
+            <div>
+              <div class="readiness-name">Kiosk Sandbox Enforcement</div>
+              <div class="readiness-sub">OS-level process lockdown active</div>
+            </div>
+          </div>
+          <div class="readiness-item">
+            <span class="readiness-icon">✓</span>
+            <div>
+              <div class="readiness-name">LAN Server Connectivity</div>
+              <div class="readiness-sub" id="lanNodeStatusText">Connected to Local Lab Master Clock</div>
+            </div>
+          </div>
+          <div class="readiness-item">
+            <span class="readiness-icon">✓</span>
+            <div>
+              <div class="readiness-name">Continuous Telemetry Heartbeat</div>
+              <div class="readiness-sub">Real-time audit trail synchronized with instructor portal</div>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>Student Full Name</label>
-          <input type="text" id="studentNameInput" placeholder="Aarav Sharma" />
+        <!-- Lab Rules Summary -->
+        <div class="rules-summary">
+          <div class="rules-header">Examination Code of Conduct</div>
+          <ul class="rules-list">
+            <li>Ensure solution compiles and passes all test suites prior to final submission.</li>
+            <li>Pasting from external applications is logged directly to instructor proctors.</li>
+            <li>Copy and paste within the exam code editor is fully authorized.</li>
+            <li>All progress is autosaved to the lab server continuously.</li>
+          </ul>
         </div>
+      </div>
 
-        <div class="form-group">
-          <label>Roll Number / Student ID</label>
-          <input type="text" id="studentIdInput" placeholder="CS2026_042" />
-        </div>
+      <!-- Right Zone: Access Key & Candidate Authentication -->
+      <div class="kiosk-right-panel">
+        <div class="auth-box">
+          <div class="auth-header">
+            <h3>Candidate Authentication</h3>
+            <p>Input the 6-character room access code projected by your proctor.</p>
+          </div>
 
-        <button class="btn-primary" id="joinBtn">Authenticate & Enter</button>
-        <div id="joinError" style="color: var(--status-rose); font-size: 12px; margin-top: 12px; display: none;"></div>
+          <div class="form-group code-slot-group">
+            <label>Exam Access Code</label>
+            <div class="code-slot-wrapper">
+              <input type="text" class="code-input" id="accessCodeInput" maxlength="6" placeholder="TID942" autofocus />
+            </div>
+            <span class="input-hint">6-character alphanumeric room key</span>
+          </div>
 
-        <!-- Optional Lab Technician Override (Hidden from students by default) -->
-        <div style="text-align: center; margin-top: 20px;">
-          <button type="button" id="toggleServerSettingsBtn" style="background: none; border: none; color: var(--text-tertiary); font-size: 11px; font-family: var(--font-mono); cursor: pointer;">
-            ⚙ Server Connection Settings
+          <div class="form-group">
+            <label>Candidate Full Name</label>
+            <input type="text" id="studentNameInput" placeholder="Aarav Sharma" />
+          </div>
+
+          <div class="form-group">
+            <label>Candidate Roll No / Student ID</label>
+            <input type="text" id="studentIdInput" placeholder="CS2026_042" />
+          </div>
+
+          <button class="btn-primary" id="joinBtn">
+            <span>Authenticate & Initialize Session</span>
+            <span>→</span>
           </button>
-        </div>
+          <div id="joinError" style="color: var(--status-rose); font-size: 12px; margin-top: 12px; display: none;"></div>
 
-        <div id="serverSettingsContainer" style="display: none; margin-top: 14px; padding: 14px; background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.12); border-radius: 6px; text-align: left;">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 10px; color: var(--text-secondary);">Lab Server Host URL</label>
-            <input type="text" id="serverHostInput" value="http://localhost:8000" placeholder="http://192.168.1.10:8000" style="font-size: 12px; padding: 8px 10px;" />
-            <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 6px; line-height: 1.4;">Auto-detected from LAN host. Can be customized by lab technicians if server runs on a dedicated IP.</div>
+          <!-- Optional Lab Technician Override -->
+          <div class="server-config-toggle">
+            <button type="button" id="toggleServerSettingsBtn">
+              ⚙ Technician Network Configuration
+            </button>
+          </div>
+
+          <div id="serverSettingsContainer" style="display: none; margin-top: 14px; padding: 14px; background: var(--bg-subtle); border: 1px dashed var(--border-subtle); border-radius: 6px; text-align: left;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-size: 10px;">Lab Server Host URL</label>
+              <input type="text" id="serverHostInput" value="http://localhost:8000" placeholder="http://192.168.1.10:8000" style="font-size: 12px; padding: 8px 10px;" />
+              <div class="input-hint">LAN host address. Configured automatically in college lab environments.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -68,11 +134,11 @@
 
   <!-- View 2: Locked Countdown Screen -->
   <div class="view-container" id="countdownView">
-    <div class="center-card-view">
-      <div class="join-card">
-        <div class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25); margin-bottom: 16px; display: inline-block;">IDENTITY VERIFIED</div>
-        <h2 id="countdownStudentName" style="font-size: 20px; font-weight: 600; margin-bottom: 6px;">Aarav Sharma</h2>
-        <p style="margin-bottom: 12px;">Terminal is locked until scheduled examination start time.</p>
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div class="auth-box" style="text-align: center; max-width: 480px;">
+        <div class="badge" style="background: rgba(16, 185, 129, 0.12); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 16px; display: inline-block;">IDENTITY VERIFIED</div>
+        <h2 id="countdownStudentName" style="font-size: 22px; font-weight: 700; margin-bottom: 6px;">Aarav Sharma</h2>
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px;">Terminal is locked until scheduled examination start time.</p>
         
         <div class="countdown-box">
           <div style="font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-tertiary); margin-bottom: 8px;">Starts In</div>
@@ -88,8 +154,19 @@
   <div class="view-container" id="examView">
     <!-- Left: Problem Statement & Test Cases -->
     <div class="left-panel">
+      <div class="panel-tab-bar">
+        <div class="panel-tab active">Problem Specification</div>
+        <div class="panel-tab">Constraints & I/O</div>
+      </div>
       <div class="problem-content">
-        <div class="problem-title" id="problemTitle">Problem Title</div>
+        <div class="problem-header">
+          <div class="problem-title" id="problemTitle">Problem Title</div>
+          <div class="problem-meta-chips">
+            <span class="meta-chip">Standard I/O</span>
+            <span class="meta-chip">Time Limit: 2.0s</span>
+            <span class="meta-chip">Memory: 256MB</span>
+          </div>
+        </div>
         <div class="problem-statement" id="problemStatement">Problem Statement description...</div>
         
         <div class="test-cases-section">
@@ -105,7 +182,7 @@
     <div class="right-panel">
       <div class="editor-toolbar">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <label style="font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary);">Language</label>
+          <label style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary);">Language</label>
           <select id="languageSelect" style="width: auto; padding: 4px 10px; font-size: 12px; font-family: var(--font-mono); height: 28px;">
             <option value="python">Python 3</option>
             <option value="cpp">C++ (g++)</option>
@@ -116,19 +193,18 @@
         <div class="action-bar">
           <button class="btn-secondary" id="runTestsBtn" style="display: flex; align-items: center; gap: 8px;">
             <span>Run Tests</span>
-            <span style="font-family: var(--font-mono); font-size: 10px; background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.1);">Ctrl+↵</span>
+            <span style="font-family: var(--font-mono); font-size: 10px; background: var(--bg-subtle); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border-hairline);">Ctrl+↵</span>
           </button>
         </div>
       </div>
 
       <div class="editor-container">
-        <!-- Monaco or fallback textarea -->
         <textarea id="codeEditorTextarea" spellcheck="false" placeholder="# Write your solution here..."></textarea>
       </div>
 
       <div class="console-drawer">
         <div class="console-header">
-          <span class="console-title">Execution Console</span>
+          <span class="console-title">Execution Sandbox Console</span>
           <span id="consoleTimeBadge" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">Ready</span>
         </div>
         <div class="console-body" id="consoleBody">
@@ -140,15 +216,15 @@
 
   <!-- View 4: Completed / Submitted Screen -->
   <div class="view-container" id="submittedView">
-    <div class="center-card-view">
-      <div class="join-card">
-        <div class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25); margin-bottom: 14px; display: inline-block;">ASSESSMENT RECORDED</div>
-        <h1>Submission Received</h1>
-        <p>Your code has been verified and evaluated against server-side evaluation test suites.</p>
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;">
+      <div class="auth-box" style="text-align: center; max-width: 480px;">
+        <div class="badge" style="background: rgba(16, 185, 129, 0.12); color: var(--status-emerald); border-color: rgba(16, 185, 129, 0.25); margin-bottom: 14px; display: inline-block;">ASSESSMENT RECORDED</div>
+        <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px;">Submission Confirmed</h1>
+        <p style="font-size: 13px; color: var(--text-secondary);">Your solution has been graded against both visible and hidden test suites.</p>
         
         <div class="countdown-box" style="margin: 20px 0;">
-          <div style="font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 6px;">Final Score</div>
-          <div style="font-size: 40px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary);" id="finalScoreText">100%</div>
+          <div style="font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 6px;">Evaluation Score</div>
+          <div style="font-size: 44px; font-weight: 800; font-family: var(--font-mono); color: var(--text-primary);" id="finalScoreText">100%</div>
           <div style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;" id="finalScoreDetails">Passed all test cases</div>
         </div>
 
@@ -175,7 +251,7 @@
   <!-- Fullscreen Required Gate Modal -->
   <div class="modal-overlay" id="fullscreenGateModal">
     <div class="modal-content">
-      <div class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text-primary); margin-bottom: 16px; display: inline-block;">KIOSK LOCKDOWN</div>
+      <div class="badge" style="margin-bottom: 16px; display: inline-block;">KIOSK LOCKDOWN</div>
       <h2>Fullscreen Required</h2>
       <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin: 12px 0 22px;">
         To ensure examination integrity, Tide strictly requires the screen to be in locked fullscreen mode before the session begins.
@@ -187,12 +263,12 @@
   <!-- Fullscreen Exit Lockout Overlay -->
   <div class="modal-overlay" id="fullscreenLockoutOverlay" style="background: rgba(6, 7, 10, 0.95); z-index: 9999;">
     <div class="modal-content" style="border: 1px solid var(--status-rose);">
-      <div class="badge" style="background: rgba(244, 63, 94, 0.15); color: #fda4af; border-color: rgba(244, 63, 94, 0.3); margin-bottom: 16px; display: inline-block;">SECURITY EXCEPTION</div>
+      <div class="badge" style="background: rgba(244, 63, 94, 0.15); color: var(--status-rose); border-color: rgba(244, 63, 94, 0.3); margin-bottom: 16px; display: inline-block;">SECURITY EXCEPTION</div>
       <h2 style="color: var(--status-rose);">Fullscreen Lockout Detected</h2>
       <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.5; margin: 12px 0 22px;">
         Window focus or fullscreen exit was detected and logged to instructor telemetry. You must re-enter fullscreen to continue.
       </p>
-      <button class="btn-primary" id="resumeFullscreenBtn" style="background: #ffffff; color: #000; padding: 12px 24px;">Resume Fullscreen</button>
+      <button class="btn-primary" id="resumeFullscreenBtn" style="padding: 12px 24px;">Resume Fullscreen</button>
     </div>
   </div>
 

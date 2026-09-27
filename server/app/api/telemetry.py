@@ -238,33 +238,48 @@ async def websocket_student_telemetry(websocket: WebSocket, student_session_id: 
     """
     await manager.connect_student(student_session_id, websocket)
 
-    # Broadcast connection/reconnection
+    # Broadcast connection/reconnection (de-duplicated if join_session recently logged one)
     db = SessionLocal()
     try:
-        flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
-            db,
-            student_session_id=student_session_id,
-            flag_type="reconnected",
-            metadata={"source": "websocket_connect"}
-        )
-        if flag:
-            student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
-            await manager.broadcast_to_teacher(teacher_id, {
-                "event": "new_flag",
-                "flag": {
-                    "id": flag.id,
-                    "student_session_id": student_session_id,
-                    "student_name": student.student_name if student else "Unknown",
-                    "student_identifier": student.student_identifier if student else "Unknown",
-                    "session_id": student.session_id if student else None,
-                    "type": "reconnected",
-                    "severity": flag.severity,
-                    "metadata": flag.flag_metadata,
-                    "ts": flag.ts.isoformat(),
-                    "status": "open",
-                    "risk_score": risk_score
-                }
-            })
+        recent_reconnect = db.query(Flag).filter(
+            Flag.student_session_id == student_session_id,
+            Flag.type == "reconnected"
+        ).order_by(Flag.ts.desc()).first()
+
+        now = datetime.now(timezone.utc)
+        skip_ws_flag = False
+        if recent_reconnect and recent_reconnect.ts:
+            r_ts = recent_reconnect.ts
+            if r_ts.tzinfo is None:
+                r_ts = r_ts.replace(tzinfo=timezone.utc)
+            if (now - r_ts).total_seconds() < 8.0:
+                skip_ws_flag = True
+
+        if not skip_ws_flag:
+            flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
+                db,
+                student_session_id=student_session_id,
+                flag_type="reconnected",
+                metadata={"source": "websocket_connect"}
+            )
+            if flag:
+                student = db.query(StudentInSession).filter(StudentInSession.id == student_session_id).first()
+                await manager.broadcast_to_teacher(teacher_id, {
+                    "event": "new_flag",
+                    "flag": {
+                        "id": flag.id,
+                        "student_session_id": student_session_id,
+                        "student_name": student.student_name if student else "Unknown",
+                        "student_identifier": student.student_identifier if student else "Unknown",
+                        "session_id": student.session_id if student else None,
+                        "type": "reconnected",
+                        "severity": flag.severity,
+                        "metadata": flag.flag_metadata,
+                        "ts": flag.ts.isoformat(),
+                        "status": "open",
+                        "risk_score": risk_score
+                    }
+                })
     except Exception:
         pass
     finally:

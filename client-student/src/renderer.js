@@ -34,6 +34,28 @@ window.addEventListener('DOMContentLoaded', () => {
       settingsContainer.style.display = isHidden ? 'block' : 'none';
     });
   }
+
+  // Theme Toggle (Light / Dark mode)
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const themeToggleText = document.getElementById('themeToggleText');
+  const savedTheme = localStorage.getItem('tide_theme') || 'dark';
+  applyTheme(savedTheme);
+
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('tide_theme', theme);
+    if (themeToggleText) {
+      themeToggleText.innerText = theme === 'dark' ? '☀ Light' : '☾ Dark';
+    }
+  }
 });
 
 // Internal Clipboard Tracker:
@@ -288,10 +310,15 @@ async function executeJoinFlow() {
     state.studentSessionId = data.student_session_id;
     state.sessionId = data.session_id;
 
+    if (data.is_reconnect) {
+      showReconnectNotification(data.downtime_seconds);
+    }
+
     // Update Header
     sessionBadge.innerText = `SESSION: ${state.accessCode}`;
-    sessionBadge.style.background = '#0284c7';
-    sessionBadge.style.color = '#e0f2fe';
+    sessionBadge.style.background = 'rgba(255, 255, 255, 0.08)';
+    sessionBadge.style.color = '#ededed';
+    sessionBadge.style.border = '1px solid rgba(255, 255, 255, 0.16)';
     studentInfoBadge.innerText = `${state.studentName} (${state.studentIdentifier})`;
     studentInfoBadge.style.display = 'block';
 
@@ -304,6 +331,29 @@ async function executeJoinFlow() {
     joinBtn.disabled = false;
     joinBtn.innerText = 'Enter Exam';
   }
+}
+
+// Reconnect Floating Toast Notification
+function showReconnectNotification(downtimeSeconds) {
+  let toast = document.getElementById('reconnectToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'reconnectToast';
+    toast.className = 'reconnect-toast';
+    document.body.appendChild(toast);
+  }
+  const formattedDowntime = downtimeSeconds ? `${downtimeSeconds}s` : 'brief';
+  toast.innerHTML = `
+    <div class="reconnect-toast-icon">✓</div>
+    <div class="reconnect-toast-content">
+      <div class="reconnect-toast-title">Session Resumed</div>
+      <div class="reconnect-toast-desc">Restored code from autosave (${formattedDowntime} offline gap). Assessment active.</div>
+    </div>
+  `;
+  toast.classList.add('visible');
+  setTimeout(() => {
+    toast.classList.remove('visible');
+  }, 6000);
 }
 
 // Check State and Start-Gate
@@ -375,10 +425,10 @@ function loadExamEnvironment(data) {
     const card = document.createElement('div');
     card.className = 'test-case-card';
     card.innerHTML = `
-      <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #60a5fa;">Test Case ${idx + 1}</div>
-      <div class="tc-label">Input:</div>
+      <div style="font-weight: 600; font-size: 11px; margin-bottom: 8px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em;">Test Case ${idx + 1}</div>
+      <div class="tc-label">Input</div>
       <div class="tc-value">${escapeHtml(tc.input || '')}</div>
-      <div class="tc-label">Expected Output:</div>
+      <div class="tc-label">Expected Output</div>
       <div class="tc-value">${escapeHtml(tc.expected_output || '')}</div>
     `;
     container.appendChild(card);
@@ -463,7 +513,7 @@ const consoleTimeBadge = document.getElementById('consoleTimeBadge');
 runTestsBtn.addEventListener('click', async () => {
   runTestsBtn.disabled = true;
   runTestsBtn.innerText = 'Running...';
-  consoleBody.innerHTML = '<span style="color: #60a5fa;">Compiling and executing test cases...</span>';
+  consoleBody.innerHTML = '<span style="color: var(--text-secondary);">Executing test suites against sandbox...</span>';
   consoleTimeBadge.innerText = 'Executing';
 
   const code = document.getElementById('codeEditorTextarea').value;
@@ -487,31 +537,31 @@ runTestsBtn.addEventListener('click', async () => {
     if (data.results && data.results.length > 0) {
       data.results.forEach((r, idx) => {
         const statusBadge = r.passed
-          ? '<span style="background: #047857; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">PASSED</span>'
-          : '<span style="background: #b91c1c; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 700;">FAILED</span>';
+          ? '<span style="background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px; font-family: var(--font-mono);">PASSED</span>'
+          : '<span style="background: rgba(244, 63, 94, 0.12); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.25); padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px; font-family: var(--font-mono);">FAILED</span>';
 
         html += `
-          <div style="margin-bottom: 12px; padding: 8px; background: #111827; border-radius: 6px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <strong>Test Case ${idx + 1}</strong>
+          <div style="margin-bottom: 10px; padding: 10px 12px; background: var(--bg-well); border: 1px solid var(--border-hairline); border-radius: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-primary);">Test Case ${idx + 1}</strong>
               ${statusBadge}
             </div>
-            ${r.error ? `<div style="color: #ef4444; margin-top: 4px;">Error: ${escapeHtml(r.error)}</div>` : ''}
-            <div style="color: #94a3b8; font-size: 12px; margin-top: 4px;">Output:</div>
-            <pre style="background: #000; padding: 6px; border-radius: 4px; margin-top: 2px;">${escapeHtml(r.actual_output || '')}</pre>
+            ${r.error ? `<div style="color: var(--status-rose); font-size: 11px; margin-top: 4px;">Error: ${escapeHtml(r.error)}</div>` : ''}
+            <div style="color: var(--text-tertiary); font-size: 11px; margin-top: 4px;">Output:</div>
+            <pre style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-hairline); padding: 6px 8px; border-radius: 4px; margin-top: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--text-primary);">${escapeHtml(r.actual_output || '')}</pre>
           </div>
         `;
       });
     } else {
-      html = '<span style="color: #10b981;">Execution completed with no visible tests.</span>';
+      html = '<span style="color: var(--status-emerald);">Execution completed with no visible tests.</span>';
     }
 
     consoleBody.innerHTML = html;
   } catch (err) {
-    consoleBody.innerHTML = `<span style="color: #ef4444;">Run failed: ${escapeHtml(err.message)}</span>`;
+    consoleBody.innerHTML = `<span style="color: var(--status-rose);">Run failed: ${escapeHtml(err.message)}</span>`;
   } finally {
     runTestsBtn.disabled = false;
-    runTestsBtn.innerText = '▶ Run Tests';
+    runTestsBtn.innerText = 'Run Tests';
   }
 });
 

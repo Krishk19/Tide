@@ -20,6 +20,28 @@ if (audioToggleBtn) {
   });
 }
 
+// Theme Toggle (Light / Dark mode)
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeToggleText = document.getElementById('themeToggleText');
+const savedTheme = localStorage.getItem('tide_theme') || 'dark';
+applyTheme(savedTheme);
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('tide_theme', theme);
+  if (themeToggleText) {
+    themeToggleText.innerText = theme === 'dark' ? '☀ Light' : '☾ Dark';
+  }
+}
+
 // DOM Elements
 const authSection = document.getElementById('authSection');
 const liveMonitorSection = document.getElementById('liveMonitorSection');
@@ -219,12 +241,12 @@ async function loadAssignments() {
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
-        <div style="font-weight: 700; font-size: 16px; margin-bottom: 8px; color: #60a5fa;">${escapeHtml(a.title)}</div>
+        <div style="font-weight: 600; font-size: 15px; margin-bottom: 8px; color: var(--text);">${escapeHtml(a.title)}</div>
         <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">${escapeHtml(a.problem_statement.substring(0, 110))}...</p>
-        <div style="display: flex; gap: 8px; font-size: 12px; margin-bottom: 14px;">
-          <span class="badge" style="background: #1e3a8a;">${a.language_set}</span>
-          <span class="badge" style="background: #065f46;">${(a.visible_test_cases || []).length} Visible Tests</span>
-          <span class="badge" style="background: #78350f;">${(a.hidden_test_cases || []).length} Hidden Tests</span>
+        <div style="display: flex; gap: 6px; font-size: 11px; margin-bottom: 6px;">
+          <span class="badge">${a.language_set}</span>
+          <span class="badge">${(a.visible_test_cases || []).length} Visible</span>
+          <span class="badge">${(a.hidden_test_cases || []).length} Hidden</span>
         </div>
       `;
       grid.appendChild(card);
@@ -318,11 +340,22 @@ async function loadActiveSessionRoster(sessionId) {
     const session = await res.json();
 
     document.getElementById('studentCountBadge').innerText = `${session.student_count} CONNECTED`;
+
+    // Update Executive Metrics Bar
+    const metricTotal = document.getElementById('metricTotalStudents');
+    const metricSubmitted = document.getElementById('metricSubmittedCount');
+    const metricActive = document.getElementById('metricActiveStreams');
+    const metricFlags = document.getElementById('metricSecurityFlags');
+    if (metricTotal) metricTotal.innerText = session.students?.length || 0;
+    if (metricSubmitted) metricSubmitted.innerText = session.students?.filter(s => s.submitted_at).length || 0;
+    if (metricActive) metricActive.innerText = session.student_count || 0;
+    if (metricFlags) metricFlags.innerText = session.students?.reduce((acc, s) => acc + (s.flag_count || 0), 0) || 0;
+
     const tbody = document.getElementById('studentRosterTbody');
     tbody.innerHTML = '';
 
     if (!session.students || session.students.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">No students have joined this session yet. Project code on board!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No students have joined this session yet. Project code on board!</td></tr>';
       return;
     }
 
@@ -330,12 +363,12 @@ async function loadActiveSessionRoster(sessionId) {
       const tr = document.createElement('tr');
       const autosaveTime = st.last_autosaved_at ? new Date(st.last_autosaved_at).toLocaleTimeString() : 'Never';
       const statusBadge = st.submitted_at
-        ? '<span class="badge" style="background: #047857;">SUBMITTED</span>'
-        : '<span class="badge" style="background: #1e3a8a;">TAKING EXAM</span>';
+        ? '<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.25);">SUBMITTED</span>'
+        : '<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text);">TAKING EXAM</span>';
 
       const flagBadge = st.flag_count > 0
-        ? `<span class="badge" style="background: #78350f; color: #fed7aa;">${st.flag_count} Flags</span>`
-        : '<span class="badge" style="background: #065f46; color: #a7f3d0;">Clean</span>';
+        ? `<span class="badge" style="background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.25);">${st.flag_count} Flags</span>`
+        : '<span class="badge" style="background: rgba(16, 185, 129, 0.08); color: #34d399; border-color: rgba(16, 185, 129, 0.2);">Clean</span>';
 
       const risk = st.risk_score || 0;
       let riskClass = 'risk-clean';
@@ -354,9 +387,9 @@ async function loadActiveSessionRoster(sessionId) {
 
       tr.innerHTML = `
         <td><strong>${escapeHtml(st.student_name)}</strong></td>
-        <td style="font-family: monospace;">${escapeHtml(st.student_identifier)}</td>
+        <td style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">${escapeHtml(st.student_identifier)}</td>
         <td>${riskBadge}</td>
-        <td style="font-size: 13px; color: #94a3b8;">${autosaveTime}</td>
+        <td style="font-size: 12px; font-family: var(--font-mono); color: var(--text-muted);">${autosaveTime}</td>
         <td>${statusBadge}</td>
         <td>${flagBadge}</td>
       `;
@@ -410,39 +443,49 @@ function prependFlagCard(flag, isNew = true) {
   if (flag.type === 'paste') {
     descText = `Pasted ${flag.metadata?.length || 0} characters into code editor`;
     if (flag.metadata?.sample) {
-      descText += `<div style="font-family: monospace; font-size: 11px; background: #000; padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: #94a3b8;">Sample: "${escapeHtml(flag.metadata.sample)}"</div>`;
+      descText += `<div style="font-family: var(--font-mono); font-size: 11px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: var(--text-muted);">Sample: "${escapeHtml(flag.metadata.sample)}"</div>`;
     }
   }
   if (flag.type === 'connection-lost') descText = 'Abrupt WebSocket disconnect detected';
-  if (flag.type === 'reconnected') descText = 'Student reconnected to exam session';
+  if (flag.type === 'reconnected') {
+    const downtime = flag.metadata?.downtime_seconds != null ? `${flag.metadata.downtime_seconds}s` : null;
+    const lines = flag.metadata?.restored_line_count != null ? `${flag.metadata.restored_line_count} lines` : null;
+    if (downtime && lines) {
+      descText = `Student reconnected after ${downtime} offline gap. Restored ${lines} of code from autosave.`;
+    } else if (flag.metadata?.reason) {
+      descText = escapeHtml(flag.metadata.reason);
+    } else {
+      descText = 'Student reconnected to exam session';
+    }
+  }
   if (flag.type === 'correlated-cheat-attempt') {
     descText = `⚠️ <strong>HIGH-CONFIDENCE CORRELATION ALERT:</strong> ${escapeHtml(flag.metadata?.reason || 'Window lost focus followed immediately by external paste.')}`;
     if (flag.metadata?.paste_sample) {
-      descText += `<div style="font-family: monospace; font-size: 11px; background: #000; padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: #f87171;">Sample: "${escapeHtml(flag.metadata.paste_sample)}"</div>`;
+      descText += `<div style="font-family: var(--font-mono); font-size: 11px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.2); padding: 4px 8px; border-radius: 4px; margin-top: 5px; color: #fda4af;">Sample: "${escapeHtml(flag.metadata.paste_sample)}"</div>`;
     }
     if (isNew) playAlertChime();
   }
 
   const isReviewed = flag.status !== 'open';
-  const notesText = flag.notes ? `<div style="font-size: 11px; color: #93c5fd; margin-top: 4px;"><em>Note: ${escapeHtml(flag.notes)}</em></div>` : '';
+  const notesText = flag.notes ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"><em>Note: ${escapeHtml(flag.notes)}</em></div>` : '';
 
   card.innerHTML = `
     <div class="flag-header">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span class="badge badge-${flag.type}">${flag.type}</span>
         <strong style="font-size: 13px;">${escapeHtml(flag.student_name || 'Student')}</strong>
-        <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(flag.student_identifier || '')})</span>
+        <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">(${escapeHtml(flag.student_identifier || '')})</span>
       </div>
-      <span style="font-size: 11px; color: var(--text-muted);">${timeStr}</span>
+      <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);">${timeStr}</span>
     </div>
     <div class="flag-desc">${descText}${notesText}</div>
     <div style="display: flex; justify-content: flex-end; gap: 6px;">
       ${
         isReviewed
-          ? `<span style="font-size: 11px; color: ${flag.status === 'escalated' ? '#f87171' : '#10b981'}; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
+          ? `<span style="font-size: 11px; color: ${flag.status === 'escalated' ? 'var(--danger)' : 'var(--success)'}; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
           : `
             <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="dismissFlag(${flag.id})">Dismiss</button>
-            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; background: #7f1d1d; color: #fecaca;" onclick="escalateFlag(${flag.id})">⚠️ Escalate</button>
+            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px; background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.25);" onclick="escalateFlag(${flag.id})">Escalate</button>
           `
       }
     </div>

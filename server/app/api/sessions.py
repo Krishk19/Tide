@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import random
 import string
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -175,11 +176,14 @@ def update_session_status(
     return get_session(session_id, current_teacher, db)
 
 @router.post("/join", response_model=StudentJoinResponse)
-def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
+async def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
     """
     Student joins an exam session using a 6-character access code.
-    If the student already joined previously with the same identifier,
-    resumes their session and preserves their existing student_session_id.
+    If the student already joined previously with the same identifier:
+    - Verifies they haven't submitted yet.
+    - Calculates the exact downtime gap Delta-t from their last disconnect/autosave.
+    - Restores their exact autosaved code from SQLite.
+    - Logs a forensic 'reconnected' flag to the teacher dashboard.
     """
     clean_code = req.access_code.strip().upper()
     session = db.query(ExamSession).filter(
@@ -198,36 +202,124 @@ def join_session(req: StudentJoinRequest, db: Session = Depends(get_db)):
         StudentInSession.student_identifier == req.student_identifier.strip()
     ).first()
 
-    if not student:
-        student = StudentInSession(
-            session_id=session.id,
-            student_name=req.student_name.strip(),
-            student_identifier=req.student_identifier.strip()
-        )
-        db.add(student)
-        db.commit()
-        db.refresh(student)
+    now = datetime.now(timezone.utc)
 
-        # Initialize starter submission record
-        assignment = session.assignment
-        default_lang = "python"
-        if assignment and assignment.language_set:
-            langs = [l.strip().lower() for l in assignment.language_set.split(",")]
-            if langs:
-                default_lang = langs[0]
+    if student:
+        # Check if student has already finalized their submission
+        sub = db.query(Submission).filter(Submission.student_session_id == student.id).first()
+        if sub and sub.submitted_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Assessment already finalized and submitted"
+            )
 
-        sub = Submission(
+        # Calculate exact downtime gap Delta-t
+        last_disconnect = db.query(Flag).filter(
+            Flag.student_session_id == student.id,
+            Flag.type == "connection-lost"
+        ).order_by(Flag.ts.desc()).first()
+
+        if last_disconnect and last_disconnect.ts:
+            t_disc = last_disconnect.ts
+            if t_disc.tzinfo is None:
+                t_disc = t_disc.replace(tzinfo=timezone.utc)
+            delta_seconds = max(0, int((now - t_disc).total_seconds()))
+        elif sub and sub.last_autosaved_at:
+            t_save = sub.last_autosaved_at
+            if t_save.tzinfo is None:
+                t_save = t_save.replace(tzinfo=timezone.utc)
+            delta_seconds = max(0, int((now - t_save).total_seconds()))
+        else:
+            delta_seconds = 0
+
+        restored_code = (sub.code if sub else "") or ""
+        line_count = len(restored_code.splitlines()) if restored_code else 0
+        char_count = len(restored_code)
+
+        # Log forensic reconnected flag
+        from app.api.telemetry import record_flag_in_db, manager
+        reconnect_meta = {
+            "downtime_seconds": delta_seconds,
+            "restored_line_count": line_count,
+            "restored_char_count": char_count,
+            "source": "rejoin_flow",
+            "reason": f"Student reconnected after {delta_seconds}s downtime. Restored {line_count} lines of code."
+        }
+        flag, corr_flag, teacher_id, risk_score = record_flag_in_db(
+            db=db,
             student_session_id=student.id,
-            code=assignment.starter_code if assignment else "",
-            language=default_lang,
-            test_results=None
+            flag_type="reconnected",
+            metadata=reconnect_meta,
+            ts=now,
+            severity="info"
         )
-        db.add(sub)
-        db.commit()
+
+        if flag:
+            try:
+                await manager.broadcast_to_teacher(teacher_id, {
+                    "event": "new_flag",
+                    "flag": {
+                        "id": flag.id,
+                        "student_session_id": student.id,
+                        "student_name": student.student_name,
+                        "student_identifier": student.student_identifier,
+                        "session_id": session.id,
+                        "type": "reconnected",
+                        "severity": flag.severity,
+                        "metadata": reconnect_meta,
+                        "ts": flag.ts.isoformat(),
+                        "status": "open",
+                        "risk_score": risk_score
+                    }
+                })
+            except Exception:
+                pass
+
+        return {
+            "student_session_id": student.id,
+            "session_id": session.id,
+            "student_name": student.student_name,
+            "student_identifier": student.student_identifier,
+            "is_reconnect": True,
+            "downtime_seconds": delta_seconds,
+            "last_saved_at": sub.last_autosaved_at if sub else None
+        }
+
+    # Brand new student join
+    student = StudentInSession(
+        session_id=session.id,
+        student_name=req.student_name.strip(),
+        student_identifier=req.student_identifier.strip(),
+        risk_score=0
+    )
+    db.add(student)
+    db.commit()
+    db.refresh(student)
+
+    # Initialize starter submission record
+    assignment = session.assignment
+    default_lang = "python"
+    if assignment and assignment.language_set:
+        langs = [l.strip().lower() for l in assignment.language_set.split(",")]
+        if langs:
+            default_lang = langs[0]
+
+    sub = Submission(
+        student_session_id=student.id,
+        code=assignment.starter_code if assignment else "",
+        language=default_lang,
+        test_results=None,
+        last_autosaved_at=now
+    )
+    db.add(sub)
+    db.commit()
 
     return {
         "student_session_id": student.id,
         "session_id": session.id,
         "student_name": student.student_name,
-        "student_identifier": student.student_identifier
+        "student_identifier": student.student_identifier,
+        "is_reconnect": False,
+        "downtime_seconds": 0,
+        "last_saved_at": now
     }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +10,9 @@
   <!-- Instructor Header -->
   <header>
     <div class="brand">
-      <h1>🌊 Tide Command Center</h1>
-      <span class="badge" style="background: #1e3a8a; color: #93c5fd;">INSTRUCTOR PORTAL</span>
+      <div class="brand-mark">T</div>
+      <h1>Tide <span>Command Center</span></h1>
+      <span class="badge">Instructor</span>
     </div>
 
     <nav class="nav-links" id="mainNav" style="display: none;">
@@ -21,19 +22,23 @@
     </nav>
 
     <div class="user-controls">
-      <div id="teacherProfile" style="display: none; font-size: 13px; color: var(--text-muted);">
-        Logged in as <strong id="teacherNameDisplay" style="color: var(--text);">Prof. Sharma</strong>
+      <!-- Dual-Theme Switcher -->
+      <button class="theme-toggle-btn" id="themeToggleBtn" type="button" title="Toggle Light / Dark Mode">
+        <span id="themeToggleText">☀ Light</span>
+      </button>
+      <div id="teacherProfile" style="display: none; font-size: 12px; color: var(--text-muted);">
+        Authenticated: <strong id="teacherNameDisplay" style="color: var(--text); font-weight: 600;">Prof. Sharma</strong>
       </div>
-      <button class="btn btn-secondary" id="logoutBtn" style="display: none; padding: 4px 10px; font-size: 12px;">Logout</button>
+      <button class="btn btn-secondary" id="logoutBtn" style="display: none; padding: 4px 10px; font-size: 11px;">Logout</button>
     </div>
   </header>
 
   <main>
     <!-- View 0: Authentication -->
     <section class="view-section active" id="authSection">
-      <div style="max-width: 420px; margin: 40px auto;" class="card">
-        <h2 style="margin-bottom: 6px;">Instructor Login</h2>
-        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">Access your assessment sessions and live telemetry</p>
+      <div style="max-width: 400px; margin: 60px auto;" class="card">
+        <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">Instructor Authentication</h2>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 22px;">Access laboratory assessment sessions and live telemetry stream</p>
         
         <div class="form-group">
           <label>Username</label>
@@ -45,25 +50,50 @@
           <input type="password" id="loginPassword" value="securepassword123" placeholder="Password" />
         </div>
 
-        <button class="btn btn-primary" id="loginBtn" style="width: 100%; justify-content: center;">Sign In</button>
+        <button class="btn btn-primary" id="loginBtn" style="width: 100%; justify-content: center; margin-top: 8px;">Sign In</button>
         <button class="btn btn-secondary" id="demoRegisterBtn" style="width: 100%; justify-content: center; margin-top: 10px;">Quick Register Demo Account</button>
-        <div id="authError" style="color: var(--danger); font-size: 13px; margin-top: 10px; display: none;"></div>
+        <div id="authError" style="color: var(--danger); font-size: 12px; margin-top: 10px; display: none;"></div>
       </div>
     </section>
 
     <!-- View 1: Live Proctoring Room -->
     <section class="view-section" id="liveMonitorSection">
+      <!-- Executive Metrics Overview -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div class="metric-label">Enrolled Terminals</div>
+          <div class="metric-val" id="metricTotalStudents">0</div>
+          <div class="metric-sub">Kiosks in current room</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Submissions Logged</div>
+          <div class="metric-val" id="metricSubmittedCount">0</div>
+          <div class="metric-sub">Evaluated & finalized</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Active Telemetry</div>
+          <div class="metric-val" id="metricActiveStreams">0</div>
+          <div class="metric-sub">Live WebSocket connections</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Security Incidents</div>
+          <div class="metric-val" id="metricSecurityFlags" style="color: var(--warning);">0</div>
+          <div class="metric-sub">Flagged anomalies</div>
+        </div>
+      </div>
+
+      <!-- Action & Filter Bar -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <div style="display: flex; align-items: center; gap: 14px;">
-          <h2 style="font-size: 20px;">Live Exam Proctoring Feed</h2>
-          <select id="activeSessionSelect" style="width: 240px; padding: 6px 10px; font-size: 13px;">
+          <h2 style="font-size: 18px; font-weight: 700;">Live Examination Telemetry</h2>
+          <select id="activeSessionSelect" style="width: 250px; padding: 6px 10px; font-size: 12px; font-family: var(--font-mono);">
             <option value="">Select a Session to Monitor</option>
           </select>
         </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 12px; padding: 6px 12px;">🔔 Audio Alert: ON</button>
-          <button class="btn btn-secondary" id="projectCodeBtn">📽️ Project Access Code</button>
-          <button class="btn btn-primary" id="refreshMonitorBtn">🔄 Refresh</button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-secondary" id="audioAlertToggleBtn" style="font-size: 11px; padding: 6px 10px;">Audio Alert: ON</button>
+          <button class="btn btn-secondary" id="projectCodeBtn" style="font-size: 11px; padding: 6px 12px;">Project Access Code</button>
+          <button class="btn btn-primary" id="refreshMonitorBtn" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
         </div>
       </div>
 
@@ -71,8 +101,8 @@
         <!-- Left Column: Active Students Roster -->
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-            <h3 style="font-size: 16px;">Active Students in Room</h3>
-            <span class="badge" id="studentCountBadge" style="background: #1f2937;">0 CONNECTED</span>
+            <h3 style="font-size: 14px; font-weight: 700;">Connected Student Terminals</h3>
+            <span class="badge" id="studentCountBadge">0 CONNECTED</span>
           </div>
 
           <table>
@@ -88,7 +118,7 @@
             </thead>
             <tbody id="studentRosterTbody">
               <tr>
-                <td colspan="5" style="text-align: center; color: var(--text-muted);">No active session selected.</td>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No active session selected.</td>
               </tr>
             </tbody>
           </table>
@@ -98,14 +128,14 @@
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <h3 style="font-size: 16px;">Live Behavioral Flag Stream</h3>
-              <div style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></div>
+              <h3 style="font-size: 14px; font-weight: 700;">Live Telemetry Stream</h3>
+              <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success);"></div>
             </div>
-            <span style="font-size: 12px; color: var(--text-muted);" id="feedStatusText">Listening via WebSocket</span>
+            <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-tertiary);" id="feedStatusText">Listening via WebSocket</span>
           </div>
 
           <div class="flag-feed" id="liveFlagFeed">
-            <div style="color: var(--text-muted); font-size: 13px; text-align: center; padding: 30px;">
+            <div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 36px 20px;">
               Awaiting telemetry signals from student kiosk sessions...
             </div>
           </div>
@@ -116,7 +146,7 @@
     <!-- View 2: Sessions Management -->
     <section class="view-section" id="sessionsSection">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>Assessment Sessions</h2>
+        <h2 style="font-size: 18px; font-weight: 700;">Assessment Sessions</h2>
         <button class="btn btn-primary" id="openNewSessionModalBtn">+ Launch New Session</button>
       </div>
 
@@ -142,7 +172,7 @@
     <!-- View 3: Assignment Studio -->
     <section class="view-section" id="assignmentsSection">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>Author Assignments</h2>
+        <h2 style="font-size: 18px; font-weight: 700;">Author Assignments</h2>
         <button class="btn btn-primary" id="openNewAssignmentModalBtn">+ Create Assignment</button>
       </div>
 
@@ -156,7 +186,7 @@
   <div class="modal" id="newSessionModal">
     <div class="modal-box">
       <h3>Schedule Assessment Session</h3>
-      <p style="color: var(--text-muted); font-size: 13px; margin: 6px 0 18px;">Pick an authored assignment and set the scheduled start time.</p>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 6px 0 18px;">Pick an authored assignment and configure scheduled start time.</p>
       
       <div class="form-group">
         <label>Select Assignment</label>
@@ -166,13 +196,13 @@
       <div class="form-group">
         <label>Scheduled Start Time</label>
         <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <button type="button" class="btn btn-secondary" id="presetStartNowBtn" style="font-size: 12px;">Start in 15 Seconds</button>
-          <button type="button" class="btn btn-secondary" id="presetStart2mBtn" style="font-size: 12px;">Start in 2 Minutes</button>
+          <button type="button" class="btn btn-secondary" id="presetStartNowBtn" style="font-size: 11px;">Start in 15 Seconds</button>
+          <button type="button" class="btn btn-secondary" id="presetStart2mBtn" style="font-size: 11px;">Start in 2 Minutes</button>
         </div>
         <input type="datetime-local" id="modalSessionStartTimeInput" />
       </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
         <button class="btn btn-secondary" id="closeSessionModalBtn">Cancel</button>
         <button class="btn btn-primary" id="createSessionConfirmBtn">Generate Access Code</button>
       </div>
@@ -181,23 +211,23 @@
 
   <!-- Modal: Big Access Code Projector -->
   <div class="modal" id="projectorModal">
-    <div class="modal-box" style="text-align: center; max-width: 500px;">
-      <span class="badge" style="background: #1e3a8a; color: #93c5fd; margin-bottom: 12px;">EXAM ACCESS CODE</span>
-      <h2 id="projectorAssignmentTitle" style="color: var(--text-muted); font-size: 16px;">Two Sum Problem</h2>
+    <div class="modal-box" style="text-align: center; max-width: 480px;">
+      <span class="badge" style="margin-bottom: 12px;">EXAM ACCESS CODE</span>
+      <h2 id="projectorAssignmentTitle" style="color: var(--text-muted); font-size: 15px; font-weight: 500;">Two Sum Problem</h2>
       
       <div class="code-display" id="projectorCodeDisplay">TID942</div>
       
-      <p style="color: var(--text-muted); font-size: 14px;">Students should launch the Tide Kiosk app and enter this 6-character code.</p>
+      <p style="color: var(--text-muted); font-size: 13px;">Students should launch the Tide Kiosk app and input this 6-character code.</p>
       
-      <button class="btn btn-primary" id="closeProjectorBtn" style="margin-top: 20px; width: 100%; justify-content: center;">Close Projector View</button>
+      <button class="btn btn-primary" id="closeProjectorBtn" style="margin-top: 24px; width: 100%; justify-content: center;">Close Projector View</button>
     </div>
   </div>
 
   <!-- Modal: Create Assignment -->
   <div class="modal" id="newAssignmentModal">
-    <div class="modal-box" style="max-width: 700px;">
-      <h3>Author New Coding Problem</h3>
-      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 16px;">Author days ahead. Visible tests run on student machine; hidden tests grade server-side.</p>
+    <div class="modal-box" style="max-width: 680px;">
+      <h3>Author New Problem</h3>
+      <p style="color: var(--text-muted); font-size: 13px; margin: 4px 0 18px;">Visible test suites execute on kiosk; hidden test suites grade on server.</p>
       
       <div class="form-group">
         <label>Problem Title</label>
@@ -206,7 +236,7 @@
 
       <div class="form-group">
         <label>Problem Statement</label>
-        <textarea id="modalAssignStatement" rows="4" placeholder="Describe the inputs, outputs, and constraints..."></textarea>
+        <textarea id="modalAssignStatement" rows="4" placeholder="Describe requirements, inputs, outputs, and constraints..."></textarea>
       </div>
 
       <div class="grid-2">
@@ -216,27 +246,27 @@
         </div>
         <div class="form-group">
           <label>Starter Code (Optional)</label>
-          <textarea id="modalAssignStarter" rows="2" placeholder="def solution():\n    pass"></textarea>
+          <textarea id="modalAssignStarter" rows="2" placeholder="def solution():&#10;    pass" style="font-family: var(--font-mono); font-size: 12px;"></textarea>
         </div>
       </div>
 
       <div class="form-group">
-        <label style="color: #60a5fa;">Visible Test Cases (Shown to student)</label>
+        <label style="color: var(--text-tertiary);">Visible Test Cases (Public to student)</label>
         <div class="grid-2">
-          <input type="text" id="modalVisInput" placeholder="Input (e.g. 5)" />
-          <input type="text" id="modalVisOutput" placeholder="Expected Output (e.g. 25)" />
+          <input type="text" id="modalVisInput" placeholder="Input (e.g. 5)" style="font-family: var(--font-mono); font-size: 12px;" />
+          <input type="text" id="modalVisOutput" placeholder="Expected Output (e.g. 25)" style="font-family: var(--font-mono); font-size: 12px;" />
         </div>
       </div>
 
       <div class="form-group">
-        <label style="color: #f87171;">Hidden Test Cases (Server-side only)</label>
+        <label style="color: var(--text-tertiary);">Hidden Test Cases (Server-side evaluation only)</label>
         <div class="grid-2">
-          <input type="text" id="modalHidInput" placeholder="Hidden Input (e.g. 100)" />
-          <input type="text" id="modalHidOutput" placeholder="Expected Output (e.g. 10000)" />
+          <input type="text" id="modalHidInput" placeholder="Hidden Input (e.g. 100)" style="font-family: var(--font-mono); font-size: 12px;" />
+          <input type="text" id="modalHidOutput" placeholder="Expected Output (e.g. 10000)" style="font-family: var(--font-mono); font-size: 12px;" />
         </div>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
         <button class="btn btn-secondary" id="closeAssignModalBtn">Cancel</button>
         <button class="btn btn-primary" id="saveAssignmentConfirmBtn">Save Assignment</button>
       </div>

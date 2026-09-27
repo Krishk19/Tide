@@ -1,28 +1,27 @@
 /* ==========================================================================
-   TIDE INSTRUCTOR COMMAND CENTER — SWISS NEUTRAL OBSIDIAN DESIGN SYSTEM
-   High-density, architectural clarity, and distraction-free proctoring.
+   TIDE INSTRUCTOR COMMAND CENTER — HUMAN-DESIGNED DUAL-THEME SYSTEM
+   Inspired by Linear, Stripe Dashboard, and Swiss Modernism.
+   Full Light Mode and Dark Mode support with responsive layouts.
    ========================================================================== */
 
-:root {
-  /* Surfaces: Deep warm graphite & carbon */
+/* Dark Mode Tokens (Default) */
+:root, [data-theme="dark"] {
   --bg-main: #090a0d;
   --bg-card: #111216;
   --bg-surface: #16181f;
-  --bg-subtle: #1c1e26;
-  --bg-well: #0c0d11;
+  --bg-subtle: #191b22;
+  --bg-well: #0d0e12;
+  --bg-input: #0c0d11;
 
-  /* Borders: Hairline precision with neutral translucency */
   --border: rgba(255, 255, 255, 0.08);
-  --border-light: rgba(255, 255, 255, 0.14);
-  --border-focus: rgba(255, 255, 255, 0.35);
+  --border-light: rgba(255, 255, 255, 0.13);
+  --border-focus: rgba(255, 255, 255, 0.4);
 
-  /* Typography: Stark architectural neutral contrast */
   --text: #ededed;
-  --text-muted: #9ca3af;
-  --text-tertiary: #6b7280;
-  --text-disabled: #4b5563;
+  --text-muted: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-disabled: #52525b;
 
-  /* Button Tokens */
   --btn-primary-bg: #f4f4f5;
   --btn-primary-text: #090a0d;
   --btn-primary-hover: #ffffff;
@@ -31,15 +30,49 @@
   --btn-secondary-border: rgba(255, 255, 255, 0.1);
   --btn-secondary-hover: rgba(255, 255, 255, 0.09);
 
-  /* Functional Status Accents */
+  --card-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
+
   --success: #10b981;
   --danger: #f43f5e;
   --warning: #f59e0b;
   --info: #38bdf8;
 
-  /* Fonts */
-  --font-ui: -apple-system, BlinkMacSystemFont, "Geist", "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Geist", "Inter", "Segoe UI", Roboto, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
+
+/* Light Mode Tokens */
+[data-theme="light"] {
+  --bg-main: #f4f5f7;
+  --bg-card: #ffffff;
+  --bg-surface: #fafafa;
+  --bg-subtle: #f0f2f5;
+  --bg-well: #f8fafc;
+  --bg-input: #ffffff;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --border-light: rgba(0, 0, 0, 0.14);
+  --border-focus: #0f172a;
+
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-tertiary: #64748b;
+  --text-disabled: #94a3b8;
+
+  --btn-primary-bg: #0f172a;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #1e293b;
+
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-border: rgba(0, 0, 0, 0.12);
+  --btn-secondary-hover: #f1f5f9;
+
+  --card-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  --success: #059669;
+  --danger: #e11d48;
+  --warning: #d97706;
+  --info: #0284c7;
 }
 
 * {
@@ -48,7 +81,6 @@
   padding: 0;
 }
 
-/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -57,11 +89,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--border-light);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--text-disabled);
 }
 
 body {
@@ -71,15 +103,15 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.2s ease, color 0.2s ease;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ==========================================================================
-   Navigation Header
+   Header Bar
    ========================================================================== */
 header {
-  height: 52px;
+  height: 54px;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -89,6 +121,7 @@ header {
   position: sticky;
   top: 0;
   z-index: 100;
+  transition: background-color 0.2s ease;
 }
 
 .brand {
@@ -97,30 +130,42 @@ header {
   gap: 12px;
 }
 
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+}
+
 .brand h1 {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
   color: var(--text);
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.brand h1::before {
-  content: "";
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text);
+.brand h1 span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
+/* Segmented Navigation */
 .nav-links {
   display: flex;
   gap: 4px;
-  background: var(--bg-well);
+  background: var(--bg-subtle);
   padding: 3px;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -144,16 +189,38 @@ header {
 }
 
 .nav-btn.active {
-  color: #090a0d;
+  color: var(--btn-primary-text);
   background: var(--btn-primary-bg);
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .user-controls {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--text);
+  border-color: var(--border-light);
 }
 
 /* ==========================================================================
@@ -161,8 +228,8 @@ header {
    ========================================================================== */
 main {
   flex: 1;
-  padding: 28px 24px;
-  max-width: 1400px;
+  padding: 24px;
+  max-width: 1440px;
   width: 100%;
   margin: 0 auto;
 }
@@ -175,6 +242,44 @@ main {
   display: block;
 }
 
+/* Executive Metrics Bar */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: var(--card-shadow);
+}
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.metric-val {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* Cards & Grid Containers */
 .card {
   background: var(--bg-card);
@@ -182,6 +287,7 @@ main {
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
 }
 
 .grid-2 {
@@ -218,13 +324,13 @@ th {
 }
 
 td {
-  padding: 13px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text);
 }
 
 tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-subtle);
 }
 
 /* ==========================================================================
@@ -238,7 +344,7 @@ label {
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -246,8 +352,8 @@ label {
 
 input, select, textarea {
   width: 100%;
-  background: var(--bg-well);
-  border: 1px solid var(--border);
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
   color: var(--text);
   padding: 9px 12px;
   border-radius: 6px;
@@ -283,7 +389,7 @@ input::placeholder, textarea::placeholder {
 .btn-primary {
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .btn-primary:hover {
@@ -302,24 +408,15 @@ input::placeholder, textarea::placeholder {
 
 .btn-secondary:hover {
   background: var(--btn-secondary-hover);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-light);
 }
 
 .btn-secondary:active {
   transform: translateY(1px);
 }
 
-.btn-success {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-}
-
-.btn-success:hover {
-  background: #ffffff;
-}
-
 /* ==========================================================================
-   Badges & Status Tags (Neutral Restraint)
+   Badges & Risk Scores
    ========================================================================== */
 .badge {
   padding: 3px 7px;
@@ -330,63 +427,63 @@ input::placeholder, textarea::placeholder {
   display: inline-block;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-subtle);
   color: var(--text-muted);
   border: 1px solid var(--border);
 }
 
 .badge-scheduled {
-  background: rgba(255, 255, 255, 0.06);
-  color: #d4d4d8;
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  border-color: var(--border-light);
 }
 
 .badge-active {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
   border-color: rgba(16, 185, 129, 0.25);
 }
 
 .badge-closed {
-  background: rgba(255, 255, 255, 0.04);
-  color: #71717a;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--bg-subtle);
+  color: var(--text-disabled);
+  border-color: var(--border);
 }
 
 .badge-focus-lost {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
   border-color: rgba(245, 158, 11, 0.25);
 }
 
 .badge-focus-regained {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
   border-color: rgba(16, 185, 129, 0.25);
 }
 
 .badge-fullscreen-exit {
   background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
+  color: var(--danger);
   border-color: rgba(244, 63, 94, 0.25);
 }
 
 .badge-paste {
   background: rgba(245, 158, 11, 0.12);
-  color: #fed7aa;
+  color: var(--warning);
   border-color: rgba(245, 158, 11, 0.25);
 }
 
 .badge-connection-lost {
-  background: rgba(244, 63, 94, 0.15);
-  color: #fda4af;
-  border-color: rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--danger);
+  border-color: rgba(244, 63, 94, 0.25);
 }
 
 .badge-reconnected {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e4e4e7;
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--bg-subtle);
+  color: var(--text);
+  border-color: var(--border-light);
 }
 
 /* Risk Badges */
@@ -405,25 +502,25 @@ input::placeholder, textarea::placeholder {
 
 .risk-clean {
   background: rgba(16, 185, 129, 0.08);
-  color: #34d399;
+  color: var(--success);
   border-color: rgba(16, 185, 129, 0.2);
 }
 
 .risk-low {
-  background: rgba(255, 255, 255, 0.06);
-  color: #d4d4d8;
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  border-color: var(--border);
 }
 
 .risk-suspicious {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
   border-color: rgba(245, 158, 11, 0.25);
 }
 
 .risk-high {
   background: rgba(244, 63, 94, 0.12);
-  color: #fda4af;
+  color: var(--danger);
   border-color: rgba(244, 63, 94, 0.3);
 }
 
@@ -464,7 +561,7 @@ input::placeholder, textarea::placeholder {
 
 .badge-correlated-cheat-attempt {
   background: rgba(244, 63, 94, 0.2) !important;
-  color: #fda4af !important;
+  color: var(--danger) !important;
   border-color: rgba(244, 63, 94, 0.4) !important;
   font-weight: 700;
 }
@@ -497,7 +594,7 @@ input::placeholder, textarea::placeholder {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(4, 5, 8, 0.85);
+  background: rgba(4, 5, 8, 0.7);
   backdrop-filter: blur(8px);
   display: none;
   align-items: center;
@@ -518,19 +615,19 @@ input::placeholder, textarea::placeholder {
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 32px 64px -16px rgba(0, 0, 0, 0.5);
 }
 
 .modal-box h3 {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
 }
 
 /* High-Contrast Access Code Projector */
 .code-display {
   font-size: 64px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 14px;
   font-family: var(--font-mono);
   color: var(--text);
@@ -538,6 +635,6 @@ input::placeholder, textarea::placeholder {
   padding: 28px 20px;
   background: var(--bg-well);
   border-radius: 8px;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px dashed var(--border-light);
   margin: 20px 0;
 }

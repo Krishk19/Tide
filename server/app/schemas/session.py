@@ -44,3 +44,6 @@ class StudentJoinResponse(BaseModel):
     session_id: int
     student_name: str
     student_identifier: str
+    is_reconnect: bool = False
+    downtime_seconds: Optional[int] = None
+    last_saved_at: Optional[datetime] = None
