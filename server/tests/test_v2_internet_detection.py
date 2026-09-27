@@ -198,3 +198,66 @@ def test_frozen_student_rejoin_reports_is_frozen(client, db):
 
     assert rejoin_res["is_reconnect"] is True
     assert rejoin_res["is_frozen"] is True
+
+
+def test_on_desk_unfreeze_with_proctor_password(client, db):
+    # Setup session & student
+    client.post("/api/auth/register", json={
+        "username": "prof_ondesk",
+        "password": "mypassword123",
+        "name": "Prof. OnDesk"
+    })
+    token = client.post("/api/auth/login", json={
+        "username": "prof_ondesk",
+        "password": "mypassword123"
+    }).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assign_id = client.post("/api/assignments", json={
+        "title": "OnDesk Test",
+        "problem_statement": "Problem",
+        "starter_code": "pass"
+    }, headers=headers).json()["id"]
+
+    sess_res = client.post("/api/sessions", json={
+        "assignment_id": assign_id,
+        "start_time": datetime.now(timezone.utc).isoformat()
+    }, headers=headers).json()
+    session_id = sess_res["id"]
+    code = sess_res["access_code"]
+
+    join_res = client.post("/api/sessions/join", json={
+        "access_code": code,
+        "student_name": "Locked Student",
+        "student_identifier": "LOCK_123"
+    }).json()
+    student_id = join_res["student_session_id"]
+
+    # Student triggers internet detection -> exam frozen
+    client.post("/api/telemetry/event", json={
+        "student_session_id": student_id,
+        "type": "internet-detected",
+        "metadata": {"reason": "Hotspot connected"}
+    })
+
+    student = db.query(StudentInSession).filter(StudentInSession.id == student_id).first()
+    assert student.is_frozen is True
+
+    # Try invalid password
+    bad_res = client.post("/api/sessions/on-desk-unfreeze", json={
+        "student_session_id": student_id,
+        "password": "wrongpassword"
+    })
+    assert bad_res.status_code == 401
+
+    # Proctor inputs valid password directly on workstation
+    good_res = client.post("/api/sessions/on-desk-unfreeze", json={
+        "student_session_id": student_id,
+        "password": "mypassword123"
+    })
+    assert good_res.status_code == 200
+    assert good_res.json()["is_frozen"] is False
+
+    db.refresh(student)
+    assert student.is_frozen is False
+

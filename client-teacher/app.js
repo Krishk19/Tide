@@ -406,6 +406,26 @@ function renderTriageRoster() {
   gridContainer.innerHTML = '';
 
   const allStudents = state.triageStudents || [];
+
+  // Update persistent frozen students banner
+  const frozenAlertBanner = document.getElementById('activeFrozenAlertBanner');
+  const frozenAlertText = document.getElementById('activeFrozenAlertText');
+  const frozenAlertActions = document.getElementById('activeFrozenAlertActions');
+  const frozenList = allStudents.filter(s => Boolean(s.is_frozen));
+
+  if (frozenAlertBanner && frozenAlertText && frozenAlertActions) {
+    if (frozenList.length > 0) {
+      frozenAlertBanner.style.display = 'flex';
+      const names = frozenList.map(s => `<strong>${escapeHtml(s.student_name)}</strong> (${escapeHtml(s.student_identifier)})`).join(', ');
+      frozenAlertText.innerHTML = `<span>🚨</span> <span><strong>ATTENTION:</strong> ${frozenList.length} student exam(s) currently <strong>FROZEN</strong>: ${names}</span>`;
+      frozenAlertActions.innerHTML = frozenList.map(s =>
+        `<button class="btn btn-primary" style="background: #059669; border-color: #10b981; color: white; padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer;" onclick="unfreezeStudent(${s.id}, '${escapeHtml(s.student_name)}')">🔓 Unfreeze ${escapeHtml(s.student_name)}</button>`
+      ).join(' ');
+    } else {
+      frozenAlertBanner.style.display = 'none';
+    }
+  }
+
   const filtered = state.activeZoneFilter === 'all'
     ? allStudents
     : allStudents.filter(s => s.zone === state.activeZoneFilter);
@@ -640,8 +660,8 @@ function prependFlagCard(flag, isNew = true) {
           ? `<span style="font-size: 11px; color: ${flag.status === 'escalated' ? 'var(--danger)' : 'var(--success)'}; font-weight: 600;">✓ Reviewed (${flag.status})</span>`
           : `
             ${
-              flag.type === 'internet-detected'
-                ? `<button class="btn btn-primary" style="padding: 3px 8px; font-size: 11px; background: #059669; border-color: #10b981; color: white; font-weight: 600;" onclick="unfreezeStudent(${flag.student_session_id}, '${escapeHtml(flag.student_name || 'Student')}')">🔓 Unfreeze Exam</button>`
+              (flag.type === 'internet-detected' || flag.type === 'exam-frozen')
+                ? `<button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px; background: #059669; border-color: #10b981; color: white; font-weight: 700; box-shadow: 0 0 10px rgba(16,185,129,0.35); cursor: pointer;" onclick="unfreezeStudent(${flag.student_session_id}, '${escapeHtml(flag.student_name || 'Student')}', ${flag.session_id || 'null'})">🔓 Unfreeze Exam</button>`
                 : ''
             }
             <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="dismissFlag(${flag.id})">Dismiss</button>
@@ -1182,14 +1202,25 @@ window.forceSubmitStudent = async function(studentId, studentName) {
   }
 };
 
-window.unfreezeStudent = async function(studentId, studentName) {
+window.unfreezeStudent = async function(studentId, studentName, sessionId) {
+  let targetSessionId = sessionId || state.selectedSessionId;
+  if (!targetSessionId) {
+    const st = (state.triageStudents || []).find(s => s.id === studentId);
+    if (st && st.session_id) targetSessionId = st.session_id;
+  }
+  if (!targetSessionId) {
+    const activeSess = (state.sessions || []).find(s => s.status === 'active' || s.status === 'scheduled');
+    if (activeSess) targetSessionId = activeSess.id;
+  }
+  if (!targetSessionId) {
+    alert('Please select an active session from the dropdown first.');
+    return;
+  }
   if (!confirm(`Unfreeze and restart exam for ${studentName}?\nEnsure the unauthorized network device/hotspot is disconnected.`)) {
     return;
   }
-  if (!state.selectedSessionId || !state.token) return;
-
   try {
-    const res = await fetch(`/api/sessions/${state.selectedSessionId}/students/${studentId}/unfreeze`, {
+    const res = await fetch(`/api/sessions/${targetSessionId}/students/${studentId}/unfreeze`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${state.token}`,
@@ -1199,7 +1230,16 @@ window.unfreezeStudent = async function(studentId, studentName) {
       const err = await res.json();
       throw new Error(err.detail || 'Failed to unfreeze student');
     }
-    loadActiveSessionRoster(state.selectedSessionId);
+    // Update local triage state immediately
+    const st = (state.triageStudents || []).find(s => s.id === studentId);
+    if (st) {
+      st.is_frozen = false;
+      st.zone = st.risk_score >= 60 ? 'red' : 'green';
+      st.zone_reason = 'Progressing normally';
+      renderTriageRoster();
+    }
+    if (state.selectedSessionId) loadActiveSessionRoster(state.selectedSessionId);
+    showToast(`Exam unlocked and restarted for ${studentName}`, 'success');
   } catch (err) {
     alert(`Error unfreezing student: ${err.message}`);
   }

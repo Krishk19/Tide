@@ -469,6 +469,79 @@ window.addEventListener('keydown', (e) => {
 });
 window.simulateInternetDetection = () => triggerInternetDetected('evaluator-demo-trigger');
 
+// On-Desk Evaluator Unlock Handlers
+const openUnlockBtn = document.getElementById('openEvaluatorUnlockBtn');
+const unlockPanel = document.getElementById('evaluatorUnlockPanel');
+const submitUnlockBtn = document.getElementById('submitEvaluatorUnlockBtn');
+const unlockPasswordInput = document.getElementById('evaluatorPasswordInput');
+const unlockError = document.getElementById('evaluatorUnlockError');
+
+if (openUnlockBtn && unlockPanel) {
+  openUnlockBtn.addEventListener('click', () => {
+    const isHidden = unlockPanel.style.display === 'none';
+    unlockPanel.style.display = isHidden ? 'block' : 'none';
+    if (isHidden && unlockPasswordInput) {
+      unlockPasswordInput.focus();
+    }
+  });
+}
+
+if (submitUnlockBtn && unlockPasswordInput) {
+  async function performOnDeskUnlock() {
+    const password = unlockPasswordInput.value.trim();
+    if (!password) {
+      if (unlockError) {
+        unlockError.innerText = 'Please enter proctor password.';
+        unlockError.style.display = 'block';
+      }
+      return;
+    }
+    if (!state.studentSessionId) return;
+
+    submitUnlockBtn.disabled = true;
+    submitUnlockBtn.innerText = 'Unlocking...';
+    if (unlockError) unlockError.style.display = 'none';
+
+    try {
+      const res = await fetch(`${state.serverUrl}/api/sessions/on-desk-unfreeze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_session_id: state.studentSessionId,
+          password: password,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        handleExamUnfrozen('On-desk evaluator authentication');
+        unlockPasswordInput.value = '';
+        if (unlockPanel) unlockPanel.style.display = 'none';
+      } else {
+        if (unlockError) {
+          unlockError.innerText = data.detail || 'Invalid proctor password.';
+          unlockError.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      if (unlockError) {
+        unlockError.innerText = 'Failed to connect to server.';
+        unlockError.style.display = 'block';
+      }
+    } finally {
+      submitUnlockBtn.disabled = false;
+      submitUnlockBtn.innerText = 'Unlock';
+    }
+  }
+
+  submitUnlockBtn.addEventListener('click', performOnDeskUnlock);
+  unlockPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      performOnDeskUnlock();
+    }
+  });
+}
+
 function showFloatingNotification(title, desc, icon = 'ℹ️') {
   let toast = document.getElementById('reconnectToast');
   if (!toast) {

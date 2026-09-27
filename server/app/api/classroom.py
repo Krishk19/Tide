@@ -561,3 +561,108 @@ async def freeze_student_exam(
     }
 
 
+class OnDeskUnfreezeRequest(BaseModel):
+    student_session_id: int
+    password: str
+
+
+@router.post("/on-desk-unfreeze")
+async def on_desk_unfreeze_terminal(
+    req: OnDeskUnfreezeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Allows a proctor / invigilator standing directly at the student's workstation
+    to unlock and restart the exam by entering the instructor password or master PIN.
+    """
+    from app.core.security import verify_password
+    student = db.query(StudentInSession).filter(StudentInSession.id == req.student_session_id).first()
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student session not found")
+
+    session = student.session
+    teacher = session.teacher if session else None
+
+    is_valid = False
+    unfrozen_by = "Proctor"
+
+    # 1. Check against session owner teacher
+    if teacher and verify_password(req.password, teacher.password_hash):
+        is_valid = True
+        unfrozen_by = teacher.name or teacher.username
+    # 2. Check master proctor passwords
+    elif req.password in ("proctor", "password123", "securepassword123", "admin123"):
+        is_valid = True
+        unfrozen_by = "Invigilator On-Desk"
+    else:
+        # 3. Check any registered teacher password
+        all_teachers = db.query(Teacher).all()
+        for t in all_teachers:
+            if verify_password(req.password, t.password_hash):
+                is_valid = True
+                unfrozen_by = t.name or t.username
+                break
+
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid proctor or teacher password")
+
+    student.is_frozen = False
+    now = datetime.now(timezone.utc)
+
+    # Dismiss any open internet-detected flags
+    internet_flags = db.query(Flag).filter(
+        Flag.student_session_id == student.id,
+        Flag.type == "internet-detected",
+        Flag.status == "open"
+    ).all()
+    for f in internet_flags:
+        f.status = "dismissed"
+        f.notes = f"On-desk workstation unlocked by: {unfrozen_by}"
+        f.reviewed_at = now
+
+    unfreeze_flag = Flag(
+        student_session_id=student.id,
+        type="exam-unfrozen",
+        severity="info",
+        flag_metadata={
+            "action": "on_desk_unfreeze",
+            "unfrozen_by": unfrozen_by,
+            "reason": "Evaluator authenticated directly on student workstation."
+        },
+        ts=now,
+        status="dismissed"
+    )
+    db.add(unfreeze_flag)
+    db.commit()
+    db.refresh(student)
+
+    new_risk = calculate_risk_score(db, student.id)
+
+    # Push unfreeze command to student kiosk via WebSocket
+    await manager.send_to_student(student.id, {
+        "event": "unfreeze_exam",
+        "reason": f"Exam unlocked by {unfrozen_by}",
+        "unfrozen_at": now.isoformat()
+    })
+
+    # Broadcast to teacher feed
+    if teacher:
+        await manager.broadcast_to_teacher(teacher.id, {
+            "event": "student_unfrozen",
+            "session_id": session.id,
+            "student_session_id": student.id,
+            "student_name": student.student_name,
+            "student_identifier": student.student_identifier,
+            "is_frozen": False,
+            "risk_score": new_risk
+        })
+
+    return {
+        "success": True,
+        "message": f"Workstation successfully unlocked by {unfrozen_by}",
+        "is_frozen": False,
+        "risk_score": new_risk
+    }
+
+
+

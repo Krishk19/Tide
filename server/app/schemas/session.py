@@ -19,6 +19,7 @@ class StudentInSessionItem(BaseModel):
     flag_count: int = 0
     risk_score: int = 0
     extra_time_seconds: int = 0
+    is_frozen: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
