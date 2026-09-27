@@ -174,7 +174,8 @@ def get_student_forensic_timeline(
             "assignment_title": session.assignment.title if session.assignment else "Assessment"
         },
         "total_events": len(events),
-        "timeline": events
+        "timeline": events,
+        "events": events
     }
 
 

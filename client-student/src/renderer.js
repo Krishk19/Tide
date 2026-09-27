@@ -636,14 +636,6 @@ function renderQuestionTabs() {
   if (!tabsBar) return;
   tabsBar.innerHTML = '';
 
-  if (state.questions.length <= 1) {
-    const singleTab = document.createElement('div');
-    singleTab.className = 'panel-tab active';
-    singleTab.innerText = 'Problem Specification';
-    tabsBar.appendChild(singleTab);
-    return;
-  }
-
   state.questions.forEach((q, idx) => {
     const btn = document.createElement('button');
     btn.type = 'button';

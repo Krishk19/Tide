@@ -43,7 +43,7 @@ class CodeRunResponse(BaseModel):
 
 class CodeSubmitRequest(BaseModel):
     student_session_id: int
-    code: str
+    code: Optional[str] = ""
     language: str
     codes: Optional[dict[str, str]] = None  # question_id -> code
 

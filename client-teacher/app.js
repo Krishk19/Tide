@@ -1670,7 +1670,7 @@ window.openForensicTimeline = async function(studentId, studentName, studentIden
       throw new Error(err.detail || 'Failed to retrieve timeline');
     }
     const data = await res.json();
-    const events = data.events || [];
+    const events = data.timeline || data.events || [];
 
     if (events.length === 0) {
       if (listEl) listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 28px;">No audit events recorded for this terminal.</div>';
