@@ -1,89 +1,89 @@
-# Tide — Secure Lab Assessment Platform
+<p align="center"><img src="design/logo-wordmark.svg" height="80" alt="Tide — Test Integrity in Developer Environments"></p>
 
-> **"We don't claim to prevent cheating — we give teachers a live, evidence-backed flag timeline and cross-student similarity detection, with every action auditable, so a human makes the final call instead of an algorithm."**
-
-Tide is a LAN-based, locked-down coding exam platform tailored for college computer labs. It allows multiple instructors to run isolated, proctored, auto-graded coding tests concurrently without relying on an external internet connection.
-
----
-
-## 🏛️ System Architecture
-
-```
-[Student PC 1] ─┐
-[Student PC 2] ─┼── LAN / Local Wi-Fi ──► [Backend Server (FastAPI)] ──► [Judge0 / SQL Engine]
-[Student PC N] ─┘                                │
-                                                 └──► [SQLite Database]
-[Teacher PC(s)] ─────────────────────────────────┘ (Web Dashboard via LAN browser)
-```
-
-- **Student Client:** Locked-down Electron kiosk app featuring the Monaco Editor, fullscreen enforcement, DevTools & right-click blocks, shortcut intercepts, and real-time telemetry.
-- **Teacher Dashboard:** Clean web interface for authoring assignments, scheduling sessions with 6-character access codes, and reviewing live behavioral flag streams.
-- **Backend & Sandbox:** FastAPI server with SQLite DB, self-hosted Judge0 integration for C++, Python, and Java, plus a dedicated SQL execution and comparison pipeline.
+<p align="center"><b>Lab tests stay honest while students use real developer tools.</b><br>
+One small agent per PC, one screen for the invigilator, and an AI classifier that catches the AI.</p>
 
 ---
 
-## 📂 Repository Structure
+## The problem
+
+A lab test means 60 students and one invigilator. Students need VS Code, CodeBlocks, a terminal, Wireshark and VMware.
+The only control today is "unplug the LAN cable", and students beat it: they plug it back in, join a
+phone hotspot, open ChatGPT, grab the questions from Classroom before unplugging, or open old code saved on the PC.
+
+## What Tide does
+
+| Cheat | Tide |
+|---|---|
+| ChatGPT / Claude / Gemini / Copilot in a browser | Reads the address bar and **closes the tab** instantly |
+| An AI site or app no block list knows | **Jev** (TypeSafe's decision model) classifies it; at ≥ 0.90 confidence Tide closes it |
+| Re-plugging LAN, Wi-Fi, phone hotspot | Detects internet in ~5 s and shows a **full-screen block** until it's off |
+| Getting the questions before disconnecting | Questions exist only in Tide and are released at **Start**, only to PCs confirmed offline, **odd/even sets** by seat |
+| Old code on the PC or a pen drive | Pre-exam file fingerprints, so **"old code reused · 82 %"**, plus USB detection |
+| Copying from a neighbour | Different sets, LAN-peer detection, similarity across submissions |
+| Killing the agent | The seat goes grey in 10 s (in production it's a Windows service students can't stop) |
+
+Tide **never grades or punishes**. Every flag carries a screenshot, the time, and where it came from
+(rule or Jev + confidence), and the teacher dismisses or confirms it.
+
+<p align="center"><img src="design/screenshots/console-live.png" width="900" alt="Teacher console: live room"></p>
+
+<table><tr>
+<td><img src="design/screenshots/console-seat.png" alt="Seat drawer with evidence"></td>
+<td><img src="design/screenshots/agent-preflight.png" alt="Student pre-flight"></td>
+<td><img src="design/screenshots/agent-blocked.png" alt="Blocked overlay"></td>
+</tr></table>
+
+## How it works (30 seconds)
 
 ```
-Tide/
-├── 01_PRD_Secure_Lab_Assessment.md            # Product Requirements Document
-├── 02_TRD_Secure_Lab_Assessment.md            # Technical Requirements Document
-├── 03_Design_Doc_Secure_Lab_Assessment.md     # System Architecture & Sequence Flows
-├── 04_Database_Schema_Secure_Lab_Assessment.md# Relational Database Specifications
-├── 05_Security_AntiCheat_Strategy.md          # Threat Model & Anti-Cheat Approach
-├── 06_Implementation_Plan_V1_V2_Checklist.md # V1/V2 Feature Matrix & Evaluation Checklist
-├── 07_V1_Detailed_Implementation_Plan.md     # 10-Hour V1 Blueprint & Technical Specs
-├── server/                                    # FastAPI Backend & Grading Engine
-│   ├── app/
-│   │   ├── api/                               # REST & WebSocket endpoints
-│   │   ├── core/                              # Config, security, DB session
-│   │   ├── models/                            # SQLAlchemy models
-│   │   ├── schemas/                           # Pydantic validation schemas
-│   │   └── services/                          # Judge0, SQL grader, AST similarity
-│   └── requirements.txt
-├── client-student/                            # Electron Kiosk App
-│   ├── src/                                   # Kiosk main process & Monaco UI
-│   └── package.json
-└── client-teacher/                            # Teacher Web Dashboard
+Student PC: Tide Agent ──WebSocket──► Teacher laptop: Tide Server ──► Jev (OpenRouter)
+  watch windows, URLs, apps,            pair seats · keep the clock        classify the unknown
+  network, files, USB, clipboard        release questions · decide
+  act instantly on known cheats         store evidence ──► Console (React)
 ```
 
----
+Known cheats are caught by **rules on the student PC** (instant, works offline). Anything unfamiliar
+goes to the server and is classified by **Jev**. The **teacher** makes every final call.
+Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## 🔑 Key Features
+## Docs
 
-1. **Multi-Teacher Isolation:** Data access is strictly derived from the authenticated teacher's JWT context (`WHERE teacher_id = ?`) server-side.
-2. **Confidential Test Grading:** Visible tests run client-visible; hidden test cases reside server-side only and are never exposed to student machines.
-3. **Resilient Disconnect & Autosave:** Debounced editor autosave (every 3–5 seconds) preserves progress. Unscheduled disconnects trigger a timestamped `connection-lost` event without destroying session continuity.
-4. **Behavioral Telemetry:** Live detection of window blur/focus loss, fullscreen exits, paste events, and correlated high-confidence flags (e.g. blur immediately followed by a large paste).
-5. **Auditable Review Trail:** Flags are marked `open`, `dismissed`, or `escalated` with `reviewed_by` and `reviewed_at` timestamps — never deleted.
-6. **AST-based Plagiarism Detection:** Syntactic tree comparison normalizes variable names to flag structural copying across submissions.
+| Read this | When |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | To understand and explain every part, including the honest limitations |
+| [docs/DEMO.md](docs/DEMO.md) | The 4-minute demo script, and answers to judges' cross-questions |
+| [docs/SETUP_TWO_PCS.md](docs/SETUP_TWO_PCS.md) | Setting up the demo on two new Windows PCs |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Building and testing everything on one machine (fake-PC mode) |
+| [docs/specs/](docs/specs/2026-09-28-tide-design.md) | Scope, decisions, acceptance criteria |
+| [docs/plans/](docs/plans/2026-09-28-tide-demo-build.md) | Step-by-step implementation plan (25 tasks, test-first) |
+| [design/mock-ui.html](design/mock-ui.html) | Clickable UI reference for every screen (open in a browser) |
 
----
+## Quick start (one machine)
 
-## 🚀 Getting Started
-
-### 1. Prerequisites
-- **Python 3.11+**
-- **Node.js v18+ & npm**
-- Optional: **Docker** (for Judge0 sandbox)
-
-### 2. Backend Setup
 ```bash
-cd server
-python -m venv venv
-venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e common -e "server[dev]" -e "agent[dev]"
+(cd console && npm install && npm run build)
+cp .env.example .env.local        # add OPENROUTER_API_KEY (optional; without it Tide uses heuristics)
+tide-server --demo                # console at http://localhost:8765, PIN 2468
+tide-agent --fake --server 127.0.0.1   # a simulated student PC; type `ai`, `poe`, `wifi`, `old`…
 ```
 
-### 3. Student Kiosk Client
-```bash
-cd client-student
-npm install
-npm start
-```
+## Stack
 
----
+Python 3.12 · FastAPI · SQLite · WebSockets · pywin32 / UI Automation / psutil · pywebview (WebView2) ·
+React + Vite + TypeScript · Jev via OpenRouter Decisions API.
 
-## 📄 License
-MIT License.
+## Status
+
+Built and verified in this repo, following `docs/plans/2026-09-28-tide-demo-build.md` end to end:
+73 common+server tests, 29 agent tests (1 Windows-only test skipped off Windows), and 6 console
+tests all pass, the console type-checks and builds, and a single-device rehearsal (fake student PC
+against the real server with live Jev) caught every scripted cheat correctly. Remaining before a
+real two-laptop demo: Task 19's manual verification on real Windows hardware, and the full
+`docs/SETUP_TWO_PCS.md` rehearsal.
+
+## License
+
+MIT

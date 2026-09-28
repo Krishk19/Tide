@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-label="Tide — Test Integrity in Developer Environments">
+  <g transform="translate(8 16) scale(2)">
+    <rect width="32" height="32" rx="9" fill="#0B7A83"/>
+    <path d="M5 13c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4" stroke="#fff" stroke-opacity=".5" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <path d="M5 20c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="90" y="56" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="44" font-weight="700" fill="#0F172A" letter-spacing="-1">Tide</text>
+  <text x="92" y="80" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#64748B"><tspan font-weight="700" fill="#0B7A83">T</tspan>est <tspan font-weight="700" fill="#0B7A83">I</tspan>ntegrity in <tspan font-weight="700" fill="#0B7A83">D</tspan>eveloper <tspan font-weight="700" fill="#0B7A83">E</tspan>nvironments</text>
+</svg>
