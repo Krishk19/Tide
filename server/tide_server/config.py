@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     teacher_pin: str = "2468"
     heartbeat_timeout_s: float = 10.0
     auto_act_min: float = 0.90
-    demo: bool = False
+    demo: bool = False            # preload a ready-made exam with demo questions
+    mock_room: bool = False       # also fill the room with 59 simulated students
     background_tasks: bool = True
     console_dir: Path = REPO_ROOT / "console" / "dist"
     openrouter_api_key: str = Field(default="", validation_alias=AliasChoices(

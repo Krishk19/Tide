@@ -56,4 +56,7 @@ tide-data/
 
 # Console build artifacts and deps
 console/node_modules/
-console/dist/
+
+# The built teacher console is committed so the teacher PC needs no Node.js
+!console/dist/
+!console/dist/**

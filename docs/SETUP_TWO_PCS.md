@@ -1,128 +1,97 @@
-# Demo setup on two new Windows PCs
+# Running Tide on two Windows PCs
 
-Follow this top to bottom on two fresh Windows 10/11 laptops. It takes about 20 minutes the
-first time. After that, use the 2-minute **Before every demo** checklist at the end.
+- **Teacher PC** runs the server and the console (put it on the projector).
+- **Student PC** runs the Tide agent and plays the student.
 
-- **T** = teacher laptop (server + console, on the projector)
-- **S** = student laptop (runs the Tide agent, plays the student)
+Both just join **the same Wi-Fi** (or the same phone hotspot). No cable, no IP settings, no
+commands: everything is a double-click file in the Tide folder. Only one laptop? Do both the
+teacher and student steps on it — it works the same.
 
-Both laptops simply join **the same Wi-Fi** (or the same phone hotspot). No cable, no fixed IPs:
-the demo exam allows internet and Tide monitors it. What the demo does, step by step, is in
-[DEMO.md](DEMO.md).
-
-Only have one laptop? Do sections 2–4 on it, then run the agent on the same PC with
-`tide-agent --server 127.0.0.1`. Everything works the same.
+> The double-click files were written for Windows but haven't been run on a real Windows PC yet.
+> If one fails, the manual commands are in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 
-## 1. What you need
+## 1. Once per PC (about 10 minutes)
 
-| Item | Why |
-|---|---|
-| 2 Windows 10/11 laptops, admin rights on both | |
-| One Wi-Fi network or phone hotspot for both | Jev (on T) and normal browsing (on S) |
-| Your OpenRouter API key | Jev (the only key Tide needs) |
+1. **Install Python 3.12** from https://www.python.org/downloads/ . In the installer, tick
+   **"Add python.exe to PATH"**. (Use 3.12 or 3.13; newer versions aren't supported by the
+   Windows UI library yet.)
+2. **Get the Tide folder.** Either download it from
+   https://github.com/akshit2434/Tide/tree/rebuild (**Code → Download ZIP**, then unzip), or
+   `git clone -b rebuild https://github.com/akshit2434/Tide.git`.
+3. **Run the setup file** in the Tide folder:
 
-## 2. Install software (both PCs)
+   | PC | Double-click | It will |
+   |---|---|---|
+   | Teacher | `TEACHER - 1 Setup (once).bat` | Install Tide, then ask for your OpenRouter key (paste it, or press Enter to skip — then Tide uses keyword checks instead of Jev) |
+   | Student | `STUDENT - 1 Setup (once).bat` | Install Tide |
 
-1. **Python 3.12** from https://www.python.org/downloads/ . During install tick **"Add python.exe to PATH"**.
-2. **Git** from https://git-scm.com/download/win (defaults are fine).
-3. **T only:** **Node.js 20 LTS** from https://nodejs.org .
-4. **S only:** **Google Chrome** and **VS Code**. Optionally:
-   - the *GitHub Copilot* extension in VS Code — pre-flight flags it, which demos nicely;
-   - **LM Studio** (https://lmstudio.ai) or **Ollama** — for the "local AI" step.
-5. The Edge **WebView2** runtime ships with Windows 10/11. If the agent window stays blank, install the
-   *Evergreen Bootstrapper* from https://developer.microsoft.com/microsoft-edge/webview2/ .
+   Setup needs internet. If Python isn't found, it opens the download page for you.
 
-Open **PowerShell** (not as admin) for the steps below.
+**Student PC extras for the demo** (optional but makes it better):
+- Chrome, with `chatgpt.com` and `poe.com` bookmarked.
+- VS Code, ideally with the GitHub Copilot extension (pre-flight flags it).
+- LM Studio (https://lmstudio.ai) or Ollama, for the "local AI" step.
+- The "old code" prop: copy `demo\props\dsa_lab5.cpp` into `Documents\old\`.
 
-## 3. Get the code (both PCs)
+## 2. Every time you run it
 
-```powershell
-cd $HOME
-git clone https://github.com/akshit2434/Tide.git Tide
-cd Tide
-git checkout rebuild
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-```
-If PowerShell blocks the activate script, run
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then try again.
+**Teacher PC**
+1. Double-click **`TEACHER - 2 Start.bat`**. The very first time, click **Yes** when Windows asks
+   for permission (it opens the firewall so students can connect; it won't ask again).
+2. A black window opens and stays open. It shows the **Teacher IP**. Keep it open; closing it stops Tide.
+3. The console opens in the browser. PIN: **2468**.
+4. On **Setup**: type a title, pick the allowed apps, attach your question PDF (Set A, and
+   optionally a different Set B for even seats), press **Create & open lobby**.
+5. The **Lobby** shows the **join code**. Tell the students.
 
-## 4. Teacher laptop (T)
+**Student PC**
+1. Double-click **`STUDENT - 2 Start.bat`**. (No admin needed.)
+2. Type the join code, roll number and seat number, press **Join**.
+   If it says **Teacher not found**, type the Teacher IP from the teacher's black window into
+   **Teacher address** and press Join again.
+3. Pre-flight ticks through; the seat appears in the teacher's Lobby.
 
-```powershell
-pip install -e common -e server
-cd console; npm install; npm run build; cd ..
-copy .env.example .env.local
-notepad .env.local        # paste your key after OPENROUTER_API_KEY=  and save
-```
+**Teacher PC**: press **Start**. The PDF lands in `C:\Exam\<roll>\` on each student PC, the
+student gets a timer bar, and the teacher sees the live room.
 
-**Firewall** (PowerShell **as Administrator**, once) so S can reach T:
-```powershell
-New-NetFirewallRule -DisplayName "Tide server"    -Direction Inbound -Protocol TCP -LocalPort 8765  -Action Allow -Profile Any
-New-NetFirewallRule -DisplayName "Tide discovery" -Direction Inbound -Protocol UDP -LocalPort 47800 -Action Allow -Profile Any
-```
-When Windows asks whether the Wi-Fi network is public or private, choose **Private**.
+### Mock room (for a fuller-looking presentation)
 
-## 5. Student laptop (S)
+Use **`TEACHER - 2 Start (mock 60-seat room).bat`** instead. When you create the test, Tide adds
+59 simulated students around the real ones, with a few scripted alerts during the exam. Real
+students join exactly the same way.
 
-Option A (simplest): **run from source**
-```powershell
-pip install -e common -e agent
-```
+## 3. Before every demo (1 minute)
 
-Option B: **use the .exe** (build once on any Windows PC with the repo, then copy it to S)
-```powershell
-pip install -e common -e "agent[dev]"
-cd agent; pyinstaller tide-agent.spec     # -> agent\dist\tide-agent.exe
-```
-If SmartScreen warns on first launch: **More info → Run anyway**.
+- [ ] Both PCs on the same Wi-Fi
+- [ ] Teacher console header shows **Jev live** (if it says *Offline heuristics*, the key is missing
+      or the teacher PC has no internet)
+- [ ] On the student PC, delete `C:\Exam` from the last run and close Chrome / LM Studio
+- [ ] Projector shows the teacher's browser full screen (F11)
 
-**Demo props on S:**
-```powershell
-mkdir $HOME\Documents\old
-copy demo\props\dsa_lab5.cpp $HOME\Documents\old\
-```
-In Chrome, bookmark `chatgpt.com` and `poe.com`.
+Every teacher start is a **clean slate** (old tests and flags are wiped). Export results first
+(**Results → Export CSV**) if you want to keep them.
 
-## 6. Start it
-
-**T:**
-```powershell
-cd $HOME\Tide; .venv\Scripts\Activate.ps1
-tide-server --demo
-```
-The banner prints the console URL (with T's IP), the PIN (`2468`), and `Classifier: Jev via OpenRouter`.
-A browser opens: enter the PIN. You see the **Lobby**, with a join code and 57/60 seats.
-
-**S:**
-```powershell
-cd $HOME\Tide; .venv\Scripts\Activate.ps1
-tide-agent            # or double-click tide-agent.exe
-```
-The Join window says **Teacher found · <T's IP>**. Enter the join code, roll `22BCS107`, seat `7`.
-Pre-flight ticks: Online ✓ (monitored), Apps ✓, Copilot ! (if installed), Files indexed ✓.
-Seat 07 appears in T's lobby.
-
-If it says **Teacher not found**, start it as `tide-agent --server <T's IP>` instead (see troubleshooting).
-
-Now run the script in [DEMO.md](DEMO.md).
-
-## 7. Before every demo (2 minutes)
-
-- [ ] T and S on the same Wi-Fi; the console header on T shows **Jev live**
-- [ ] Fresh state on T: stop the server, delete `tide-data`, start `tide-server --demo`
-- [ ] Fresh state on S: delete `C:\Exam`, close Chrome and LM Studio, then start the agent and join
-- [ ] Projector shows T's browser at 100 % zoom, full screen (F11)
-
-## 8. Troubleshooting
+## 4. Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| S says "Teacher not found" | Firewall rules on T (section 4); Wi-Fi set to Private; or skip discovery with `tide-agent --server <T's IP>`. Some phone hotspots stop devices seeing each other — then use a normal router, or run both on one laptop |
-| Console header says **Offline heuristics** | T has no internet, or `.env.local` is missing or has a typo. Restart the server after fixing |
-| ChatGPT isn't closed | Check the console shows seat 7 joined and the exam is **Live**; the agent watches from pairing onwards |
-| Agent window is blank | Install the WebView2 runtime (section 2) |
-| A step misfires live | Console → **Simulate** → pick the event for PC-07. It runs through the same pipeline |
-| Need to quit the agent | It closes itself 10 s after Submit. Otherwise use Task Manager; T will show the seat grey, which is itself a talking point |
+| Setup says Python isn't installed | Install Python 3.12 with "Add python.exe to PATH" ticked, then run setup again |
+| Student says **Teacher not found** | Type the Teacher IP (from the teacher's black window) into **Teacher address**. If it still fails, the Wi-Fi blocks devices from seeing each other (common on public/college Wi-Fi) — use a phone hotspot or run both on one laptop |
+| Console header says **Offline heuristics** | No key, or the teacher PC has no internet. Put the key in `.env.local` in the Tide folder (`OPENROUTER_API_KEY=...`) and start again |
+| ChatGPT isn't closed on the student PC | Check the seat is in the console and the test is **Live** |
+| Student window is blank | Install Microsoft's WebView2 runtime: https://developer.microsoft.com/microsoft-edge/webview2/ |
+| A step misfires during the demo | Console → **Simulate** → pick the event for that seat. It goes through the same pipeline |
+| The student agent needs to quit | It closes itself 10 s after Submit. Otherwise close its black window; the teacher sees the seat go grey, which is itself a talking point |
+
+## 5. Optional: one .exe for students
+
+Instead of setting up Python on every student PC, you can build `tide-agent.exe` once on any
+Windows PC with Tide set up, then copy it around:
+```
+.venv\Scripts\python.exe -m pip install pyinstaller
+cd agent
+..\.venv\Scripts\pyinstaller tide-agent.spec      ->  agent\dist\tide-agent.exe
+```
+If SmartScreen warns on first launch: **More info → Run anyway**.

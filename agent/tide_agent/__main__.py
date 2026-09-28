@@ -8,8 +8,8 @@ class _Api:
     def __init__(self, app):
         self.app = app
 
-    def join(self, code, roll, seat):
-        return self.app.join_from_ui(code, roll, seat)
+    def join(self, code, roll, seat, server=""):
+        return self.app.join_from_ui(code, roll, seat, server)
 
     def submit(self):
         return self.app.submit_from_ui()

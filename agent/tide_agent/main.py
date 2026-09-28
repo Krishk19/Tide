@@ -52,13 +52,15 @@ class AgentApp:
         self.server = parse_server(self.cfg.server) if self.cfg.server else await asyncio.to_thread(discover)
         self.ui.show_join(self.server[0] if self.server else None)
 
-    async def join(self, code: str, roll: str, seat_no: int) -> dict:
+    async def join(self, code: str, roll: str, seat_no: int, server: str = "") -> dict:
         if self.engine is not None:
             return {"ok": True}
+        if server:
+            self.server = parse_server(server)
         if not self.server:
             self.server = await asyncio.to_thread(discover)
             if not self.server:
-                return {"ok": False, "error": "Teacher not found. Check the LAN cable."}
+                return {"ok": False, "error": "Teacher not found. Type the teacher address shown in the teacher's Tide window."}
         host, port = self.server
         base = f"http://{host}:{port}"
         try:
@@ -100,8 +102,8 @@ class AgentApp:
             await asyncio.sleep(5)
 
     # called from the UI thread
-    def join_from_ui(self, code, roll, seat) -> dict:
-        return asyncio.run_coroutine_threadsafe(self.join(code, roll, seat), self.loop).result(timeout=20)
+    def join_from_ui(self, code, roll, seat, server="") -> dict:
+        return asyncio.run_coroutine_threadsafe(self.join(code, roll, seat, server), self.loop).result(timeout=20)
 
     def submit_from_ui(self) -> dict:
         asyncio.run_coroutine_threadsafe(self.engine.submit(auto=False), self.loop).result(timeout=60)

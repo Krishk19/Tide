@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;text-align:center;background:#B91C1C}
+body.net{background:#0F172A}
+.shield{width:84px;height:84px;border-radius:24px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:40px}
+h3{margin:0;font-size:34px;letter-spacing:-.02em}p{margin:0;opacity:.85;font-size:16px}
+</style></head><body>
+<div class="shield">⛔</div><h3 id="title">Blocked</h3><p id="sub">Reported to your invigilator.</p>
+<script>
+window.tide = {
+  block(title, persistent) {
+    document.body.classList.toggle("net", persistent);
+    document.getElementById("title").textContent = persistent ? "Internet detected" : title;
+    document.getElementById("sub").textContent = persistent ? "Disconnect Wi-Fi / hotspot to continue." : "Reported to your invigilator.";
+  },
+};
+</script></body></html>
