@@ -29,9 +29,9 @@
 
 ## Review Focus
 
-1. **Agent restarted mid-exam** (same roll + seat): re-pairing must succeed, the same set is re-delivered **without overwriting the student's edited files**, and the countdown resumes from the server's `ends_at`. Tests: Task 5 (re-pair), Task 16 (`write_files` never overwrites).
+1. **Agent restarted mid-exam** (same roll + seat): re-pairing must succeed, the same set is re-delivered **without overwriting the student's edited files**, and the countdown resumes from the server's `ends_at`. Tests: Task 5 (re-pair), Task 9 (re-delivery), Task 15 (`write_files` never overwrites).
 2. **Browser address bar unreadable** (UI Automation returns `None`): the window is `unknown`, not `allow`, so it still reaches Jev by title. Test: Task 2.
-3. **Exam file with the same name as an old file** (`main.c` in `C:\Exam\22BCS107` and in `D:\old`): the VS Code title contains the roll folder, so no "Pre-exam file opened" false positive. Test: Task 16.
+3. **Exam file with the same name as an old file** (`main.c` in `C:\Exam\22BCS107` and in `D:\old`): the VS Code title contains the roll folder, so no "Pre-exam file opened" false positive. Test: Task 17.
 4. **Server unreachable while the student is on a hotspot:** local rules still overlay, and flags queue on disk and flush on reconnect (heartbeats are not queued). Tests: Task 13 (outbox), Task 17 (engine enforces with no server).
 5. **Jev timeout or HTTP 500:** fall back to heuristics, and heuristics never auto-act (max confidence 0.70). Test: Task 7.
 
@@ -7108,7 +7108,7 @@ import { openAlerts } from "../state";
 import type { Room } from "../types";
 
 const SEV_CLASS = { critical: "crit", high: "crit", medium: "warn", info: "off" } as const;
-const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 
 export default function AlertFeed({ room, onOpen }: { room: Room; onOpen: (seatId: number) => void }) {
   const alerts = openAlerts(room);
@@ -7224,7 +7224,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { Room, SeatDetail, TimelineItem } from "../types";
 
-const t = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const t = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 const DOT = { critical: "crit", high: "crit", medium: "warn", info: "info" } as const;
 const STATUS = { ok: "Working", warn: "Review", crit: "Alert", off: "Offline", wait: "Waiting", done: "Submitted" } as const;
 
@@ -7338,7 +7338,7 @@ export default function Results({ room, page, onPage, onOpen }:
             <tbody>{r?.rows.map((x) => (
               <tr key={x.seat_id} onClick={() => onOpen(x.seat_id)} style={{ cursor: "pointer" }}>
                 <td><b>PC-{String(x.seat_no).padStart(2, "0")}</b></td><td className="mono">{x.roll}</td><td>{x.set ?? "—"}</td>
-                <td>{x.submitted_at ? new Date(x.submitted_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td>{x.submitted_at ? new Date(x.submitted_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</td>
                 <td><div className="fchips">{x.flags.length ? x.flags.map((f, i) => <span key={i} className={`fc ${sev(f.severity)}`}>{f.title}</span>) : <span className="sub">—</span>}</div></td>
                 <td>{x.max_match != null ? <b style={{ color: x.max_match >= 80 ? "var(--crit)" : undefined }}>{x.max_match}%</b> : <span className="sub">—</span>}</td>
                 <td>{x.submitted_at && <a className="btn ghost" onClick={(e) => e.stopPropagation()} href={api.submissionUrl(x.seat_id)}>Files</a>}</td>
