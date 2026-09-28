@@ -6476,3 +6476,930 @@ git commit -m "feat(agent): fake PC mode, app wiring, CLI, PyInstaller spec"
 ```
 
 ---
+## Phase 4 — Teacher console (`console/`)
+
+React + Vite + TypeScript, no UI library. Visual source of truth: `design/mock-ui.html`. In dev, Vite proxies `/api` and `/ws` to the server on :8765. For the demo, `npm run build` writes `console/dist`, and the server serves it at `/`.
+
+### Task 21: Console scaffold, types, API client, room state
+
+**Files:**
+- Create: `console/package.json`, `console/tsconfig.json`, `console/vite.config.ts`, `console/index.html`, `console/src/types.ts`, `console/src/api.ts`, `console/src/state.ts`, `console/src/styles.css`
+- Test: `console/src/state.test.ts`
+
+**Interfaces:**
+- Consumes: server JSON shapes from `serialize.py` (Task 4) and `/ws/console` (Task 11)
+- Produces:
+  - Types `Status, Seat, Flag, Exam, EventItem, ServerMsg, Room`
+  - `emptyRoom`, `reduce(room, msg, nowSec?) -> Room`, `openAlerts(room) -> Flag[]`, `counts(room) -> {ok, warn, crit, off}`, `remaining(exam, offset, nowSec?) -> number`, `fmtClock(sec) -> string`, `seatsGrid(room, size=60) -> (Seat | {seat_no, placeholder: true})[]`
+  - `auth.{token,set,clear}`, `api.*` (one function per endpoint), `connect(onMsg) -> () => void`
+
+- [ ] **Step 1: Scaffold**
+
+`console/package.json`:
+```json
+{
+  "name": "tide-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1" },
+  "devDependencies": {
+    "@types/react": "^18.3.3", "@types/react-dom": "^18.3.0", "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4", "vite": "^5.4.0", "vitest": "^2.0.5"
+  }
+}
+```
+`console/tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"], "module": "ESNext",
+    "moduleResolution": "Bundler", "jsx": "react-jsx", "strict": true, "noEmit": true,
+    "skipLibCheck": true, "isolatedModules": true, "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
+```
+`console/vite.config.ts`:
+```ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: { "/api": "http://localhost:8765", "/ws": { target: "ws://localhost:8765", ws: true } },
+  },
+});
+```
+`console/index.html`:
+```html
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/logo.svg" /><title>Tide</title></head>
+  <body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>
+</html>
+```
+Copy `design/logo.svg` to `console/public/logo.svg`.
+
+`console/src/styles.css`: copy the whole `<style>` block of `design/mock-ui.html` **except** the rules under the comments `mock switcher`, `student: desktop frame`, `fake VS Code`, `timer pill`, `block overlay`, and `.screen`/`.screen.on`, `.done-ic`, and the `fake screenshots` group. Then append:
+```css
+.shot img{width:100%;display:block;border-radius:8px;border:1px solid var(--line)}
+.login{max-width:360px;margin:12vh auto;padding:28px;display:flex;flex-direction:column;gap:14px}
+.seat.placeholder{border:1.5px dashed #D5DAE1;background:transparent;cursor:default}
+.seat.placeholder .no{color:#C2C9D2}
+.chip.warnchip .dot{background:var(--warn)}
+.menu{position:relative}
+.menu-list{position:absolute;right:0;top:44px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:70;min-width:200px}
+.menu-list button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:8px}
+.menu-list button:hover{background:var(--bg)}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+`console/src/state.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { counts, emptyRoom, fmtClock, openAlerts, reduce, remaining, seatsGrid } from "./state";
+import type { Flag, Seat } from "./types";
+
+const seat = (id: number, status: Seat["status"]): Seat => ({
+  id, seat_no: id, roll: `R${id}`, set: "A", state: "live", status, flags: 0, fg_app: "VS Code",
+  simulated: false, preflight: {},
+});
+const flag = (id: number, severity: Flag["severity"], status: Flag["status"] = "open", ts = id): Flag => ({
+  id, seat_id: 1, seat_no: 1, ts, kind: "x", severity, title: `f${id}`, source: "rule", label: null,
+  confidence: null, action: "none", status, has_shot: false, data: {},
+});
+
+describe("room state", () => {
+  it("hello replaces the room and measures clock offset", () => {
+    const r = reduce(emptyRoom, { t: "hello", exam: null, seats: [seat(1, "ok")], flags: [flag(1, "high")],
+      mode: "jev", server_time: 1010 }, 1000);
+    expect(r.seats[1].status).toBe("ok");
+    expect(r.clockOffset).toBe(10);
+    expect(r.mode).toBe("jev");
+  });
+
+  it("seat and flag updates upsert", () => {
+    let r = reduce(emptyRoom, { t: "seat", seat: seat(2, "ok") });
+    r = reduce(r, { t: "seat", seat: seat(2, "crit") });
+    r = reduce(r, { t: "flag", flag: flag(5, "critical") });
+    expect(r.seats[2].status).toBe("crit");
+    expect(Object.keys(r.flags)).toEqual(["5"]);
+  });
+
+  it("open alerts: newest first, no info, no reviewed", () => {
+    let r = emptyRoom;
+    for (const f of [flag(1, "medium"), flag(2, "info"), flag(3, "high", "dismissed"), flag(4, "critical")])
+      r = reduce(r, { t: "flag", flag: f });
+    expect(openAlerts(r).map((f) => f.id)).toEqual([4, 1]);
+  });
+
+  it("counts buckets", () => {
+    let r = emptyRoom;
+    for (const s of [seat(1, "ok"), seat(2, "done"), seat(3, "warn"), seat(4, "crit"), seat(5, "off"), seat(6, "wait")])
+      r = reduce(r, { t: "seat", seat: s });
+    expect(counts(r)).toEqual({ ok: 2, warn: 1, crit: 1, off: 1 });
+  });
+
+  it("grid fills to 60 with placeholders", () => {
+    const r = reduce(emptyRoom, { t: "seat", seat: seat(7, "ok") });
+    const g = seatsGrid(r);
+    expect(g.length).toBe(60);
+    expect("placeholder" in g[0]).toBe(true);
+    expect(g[6]).toMatchObject({ id: 7 });
+  });
+
+  it("clock helpers", () => {
+    expect(fmtClock(42 * 60 + 18)).toBe("42:18");
+    expect(fmtClock(0)).toBe("0:00");
+    const exam = { id: 1, title: "t", duration_s: 60, join_code: "X", state: "live" as const, started_at: 0,
+      ends_at: 1100, apps: [] };
+    expect(remaining(exam, 10, 1000)).toBe(90);
+    expect(remaining(null, 0, 1000)).toBe(0);
+  });
+});
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `cd console && npm install && npm test`
+Expected: FAIL, cannot resolve `./state`
+
+- [ ] **Step 4: Implement**
+
+`console/src/types.ts`:
+```ts
+export type Status = "ok" | "warn" | "crit" | "off" | "wait" | "done";
+export type Severity = "info" | "medium" | "high" | "critical";
+
+export interface Seat {
+  id: number; seat_no: number; roll: string; set: string | null; state: string; status: Status;
+  flags: number; fg_app: string; simulated: boolean;
+  preflight: { internet?: boolean; extensions?: string[]; denied_closed?: string[]; inventory_count?: number };
+}
+export interface Flag {
+  id: number; seat_id: number; seat_no: number; ts: number; kind: string; severity: Severity; title: string;
+  source: string; label: string | null; confidence: number | null; action: string;
+  status: "open" | "dismissed" | "confirmed"; has_shot: boolean; data: Record<string, unknown>;
+}
+export interface Exam {
+  id: number; title: string; duration_s: number; join_code: string; state: "lobby" | "live" | "ended";
+  started_at: number | null; ends_at: number | null; apps: string[];
+}
+export interface EventItem { id: number; seat_id: number; ts: number; kind: string; text: string }
+export type ServerMsg =
+  | { t: "hello"; exam: Exam | null; seats: Seat[]; flags: Flag[]; mode: string; server_time: number }
+  | { t: "seat"; seat: Seat } | { t: "flag"; flag: Flag } | { t: "event"; event: EventItem }
+  | { t: "exam"; exam: Exam } | { t: "connected"; value: boolean };
+export interface Room {
+  exam: Exam | null; seats: Record<number, Seat>; flags: Record<number, Flag>; mode: string;
+  clockOffset: number; lastEvent: EventItem | null; connected: boolean;
+}
+export type TimelineItem = ({ type: "event" } & EventItem) | ({ type: "flag" } & Flag);
+export interface SeatDetail { seat: Seat; timeline: TimelineItem[]; growth: { ts: number; lines: number }[];
+  files: { path: string; lines: number }[] }
+export interface Results {
+  rows: { seat_id: number; seat_no: number; roll: string; set: string | null; submitted_at: number | null;
+    flags: { kind: string; severity: Severity; title: string }[]; max_match: number | null }[];
+  pairs: { a: number; b: number | null; b_path: string | null; pct: number }[];
+  flag_counts: Record<string, number>;
+}
+```
+
+`console/src/state.ts`:
+```ts
+import type { Exam, Flag, Room, Seat, ServerMsg } from "./types";
+
+export const emptyRoom: Room = { exam: null, seats: {}, flags: {}, mode: "heuristics", clockOffset: 0,
+  lastEvent: null, connected: false };
+
+const nowSec = () => Date.now() / 1000;
+
+export function reduce(room: Room, m: ServerMsg, now = nowSec()): Room {
+  switch (m.t) {
+    case "hello":
+      return { ...room, exam: m.exam, mode: m.mode, clockOffset: m.server_time - now, connected: true,
+        seats: Object.fromEntries(m.seats.map((s) => [s.id, s])),
+        flags: Object.fromEntries(m.flags.map((f) => [f.id, f])) };
+    case "seat": return { ...room, seats: { ...room.seats, [m.seat.id]: m.seat } };
+    case "flag": return { ...room, flags: { ...room.flags, [m.flag.id]: m.flag } };
+    case "event": return { ...room, lastEvent: m.event };
+    case "exam": return { ...room, exam: m.exam };
+    case "connected": return { ...room, connected: m.value };
+  }
+}
+
+export function openAlerts(room: Room): Flag[] {
+  return Object.values(room.flags).filter((f) => f.status === "open" && f.severity !== "info")
+    .sort((a, b) => b.ts - a.ts || b.id - a.id);
+}
+
+export function counts(room: Room) {
+  const c = { ok: 0, warn: 0, crit: 0, off: 0 };
+  for (const s of Object.values(room.seats)) {
+    if (s.status === "ok" || s.status === "done") c.ok++;
+    else if (s.status === "warn") c.warn++;
+    else if (s.status === "crit") c.crit++;
+    else if (s.status === "off") c.off++;
+  }
+  return c;
+}
+
+export function seatsGrid(room: Room, size = 60): (Seat | { seat_no: number; placeholder: true })[] {
+  const byNo = new Map(Object.values(room.seats).map((s) => [s.seat_no, s]));
+  const max = Math.max(size, ...byNo.keys());
+  return Array.from({ length: max }, (_, i) => byNo.get(i + 1) ?? { seat_no: i + 1, placeholder: true as const });
+}
+
+export function remaining(exam: Exam | null, offset: number, now = nowSec()): number {
+  if (!exam?.ends_at) return 0;
+  return Math.max(0, Math.round(exam.ends_at - (now + offset)));
+}
+
+export function fmtClock(sec: number): string {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+```
+
+`console/src/api.ts`:
+```ts
+import type { Exam, Results, SeatDetail, ServerMsg } from "./types";
+
+let token = localStorage.getItem("tide_token") ?? "";
+export const auth = {
+  get token() { return token; },
+  set(t: string) { token = t; localStorage.setItem("tide_token", t); },
+  clear() { token = ""; localStorage.removeItem("tide_token"); },
+};
+
+async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const isForm = body instanceof FormData;
+  const r = await fetch(path, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, ...(body && !isForm ? { "Content-Type": "application/json" } : {}) },
+    body: isForm ? body : body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) { auth.clear(); location.reload(); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({ detail: r.statusText }))).detail);
+  return r.json();
+}
+
+export const api = {
+  async login(pin: string) {
+    const r = await fetch("/api/teacher/login", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }) });
+    if (!r.ok) throw new Error("Wrong PIN");
+    auth.set((await r.json()).token);
+  },
+  catalog: () => req<{ apps: string[]; presets: Record<string, string[]> }>("GET", "/api/teacher/catalog"),
+  exam: () => req<{ exam: Exam | null; files: { name: string; set: string }[] }>("GET", "/api/teacher/exam"),
+  createExam: (title: string, duration_min: number, apps: string[]) =>
+    req<Exam>("POST", "/api/teacher/exams", { title, duration_min, apps }),
+  upload: (examId: number, setName: string, file: File) => {
+    const f = new FormData(); f.append("set_name", setName); f.append("file", file);
+    return req("POST", `/api/teacher/exams/${examId}/files`, f);
+  },
+  start: () => req<Exam>("POST", "/api/teacher/start"),
+  extend: (minutes: number, seat_id?: number) => req("POST", "/api/teacher/extend", { minutes, seat_id }),
+  notice: (text: string) => req("POST", "/api/teacher/notice", { text }),
+  warn: (seatId: number) => req("POST", `/api/teacher/seats/${seatId}/warn`, {}),
+  forceSubmit: (seatId: number) => req("POST", `/api/teacher/seats/${seatId}/force-submit`),
+  seat: (seatId: number) => req<SeatDetail>("GET", `/api/teacher/seats/${seatId}`),
+  review: (flagId: number, status: "dismissed" | "confirmed") => req("PATCH", `/api/teacher/flags/${flagId}`, { status }),
+  results: () => req<Results>("GET", "/api/teacher/results"),
+  simulate: (seat_no: number, kind: string) => req("POST", "/api/teacher/simulate", { seat_no, kind }),
+  shotUrl: (flagId: number) => `/api/teacher/shots/${flagId}?token=${token}`,
+  csvUrl: () => `/api/teacher/results.csv?token=${token}`,
+  submissionUrl: (seatId: number) => `/api/teacher/submissions/${seatId}?token=${token}`,
+};
+
+export function connect(onMsg: (m: ServerMsg) => void): () => void {
+  let ws: WebSocket | null = null;
+  let stopped = false;
+  const open = () => {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/console?token=${token}`);
+    ws.onmessage = (e) => onMsg(JSON.parse(e.data));
+    ws.onclose = () => { onMsg({ t: "connected", value: false }); if (!stopped) setTimeout(open, 1500); };
+  };
+  open();
+  return () => { stopped = true; ws?.close(); };
+}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `cd console && npm test`
+Expected: 6 passed
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add console
+git commit -m "feat(console): scaffold, types, API client, room state"
+```
+
+### Task 22: Shell, login, Setup and Lobby
+
+**Files:**
+- Create: `console/src/main.tsx`, `console/src/App.tsx`, `console/src/components/TopBar.tsx`, `console/src/components/SeatGrid.tsx`, `console/src/pages/Login.tsx`, `console/src/pages/Setup.tsx`, `console/src/pages/Lobby.tsx`
+
+**Interfaces:**
+- Produces: `type Page = "setup" | "lobby" | "live" | "results"`; `<TopBar room page onPage>{right-side controls}</TopBar>`; `<SeatGrid room mode="lobby"|"live" filter? onOpen?>`; `<Setup onCreated>`, `<Lobby room onStarted>`
+
+- [ ] **Step 1: Implement**
+
+`console/src/main.tsx`:
+```tsx
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./styles.css";
+
+createRoot(document.getElementById("root")!).render(<App />);
+```
+
+`console/src/App.tsx`:
+```tsx
+import { useEffect, useReducer, useState } from "react";
+import { auth, connect } from "./api";
+import { emptyRoom, reduce } from "./state";
+import Login from "./pages/Login";
+import Setup from "./pages/Setup";
+import Lobby from "./pages/Lobby";
+import Live from "./pages/Live";
+import Results from "./pages/Results";
+import SeatDrawer from "./components/SeatDrawer";
+
+export type Page = "setup" | "lobby" | "live" | "results";
+
+function pageFor(state?: string): Page {
+  return state === "lobby" ? "lobby" : state === "live" ? "live" : state === "ended" ? "results" : "setup";
+}
+
+export default function App() {
+  const [authed, setAuthed] = useState(Boolean(auth.token));
+  const [room, dispatch] = useReducer(reduce, emptyRoom);
+  const [page, setPage] = useState<Page | null>(null);
+  const [drawer, setDrawer] = useState<number | null>(null);
+
+  useEffect(() => (authed ? connect(dispatch) : undefined), [authed]);
+  useEffect(() => { if (room.connected && page === null) setPage(pageFor(room.exam?.state)); }, [room.connected, room.exam, page]);
+  useEffect(() => { if (room.exam?.state === "live" && page === "lobby") setPage("live"); }, [room.exam?.state, page]);
+
+  if (!authed) return <Login onDone={() => setAuthed(true)} />;
+  const p = page ?? "setup";
+  const common = { room, page: p, onPage: setPage, onOpen: setDrawer };
+  return (
+    <>
+      {p === "setup" && <Setup {...common} onCreated={() => setPage("lobby")} />}
+      {p === "lobby" && <Lobby {...common} />}
+      {p === "live" && <Live {...common} />}
+      {p === "results" && <Results {...common} />}
+      <SeatDrawer seatId={drawer} room={room} onClose={() => setDrawer(null)} />
+    </>
+  );
+}
+```
+
+`console/src/components/TopBar.tsx`:
+```tsx
+import type { ReactNode } from "react";
+import type { Page } from "../App";
+import type { Room } from "../types";
+
+const STEPS: Page[] = ["setup", "lobby", "live", "results"];
+const LABEL: Record<Page, string> = { setup: "Setup", lobby: "Lobby", live: "Live", results: "Results" };
+
+export default function TopBar({ room, page, onPage, children }:
+  { room: Room; page: Page; onPage: (p: Page) => void; children?: ReactNode }) {
+  const jev = room.mode === "jev";
+  return (
+    <header className="topbar">
+      <div className="logo"><img src="/logo.svg" width={26} height={26} alt="" />Tide</div>
+      {room.exam && <div className="exam-name">{room.exam.title}</div>}
+      <div className="steps">
+        {STEPS.map((s) => <button key={s} className={s === page ? "on" : ""} onClick={() => onPage(s)}>{LABEL[s]}</button>)}
+      </div>
+      <div className="spacer" />
+      {!room.connected && <span className="chip warnchip"><span className="dot" />Reconnecting…</span>}
+      <span className={`chip ${jev ? "" : "warnchip"}`}><span className="dot" />{jev ? "Jev live" : "Offline heuristics"}</span>
+      {children}
+    </header>
+  );
+}
+```
+
+`console/src/components/SeatGrid.tsx`:
+```tsx
+import { seatsGrid } from "../state";
+import type { Room, Seat } from "../types";
+
+function lobbyNote(s: Seat): string {
+  if (s.state === "blocked") return "Internet on";
+  if (s.preflight.extensions?.length) return `${s.preflight.extensions[0].replace("GitHub ", "")} found`;
+  if (s.state === "lobby") return "Checking…";
+  return "Ready";
+}
+
+export default function SeatGrid({ room, mode, filter = "all", onOpen }:
+  { room: Room; mode: "lobby" | "live"; filter?: string; onOpen?: (id: number) => void }) {
+  return (
+    <div className="seats">
+      {seatsGrid(room).map((s) => {
+        if ("placeholder" in s)
+          return <div key={`p${s.seat_no}`} className="seat placeholder"><span className="no">{String(s.seat_no).padStart(2, "0")}</span></div>;
+        const cls = ["seat", s.status, !s.simulated ? "real" : "", filter !== "all" && s.status !== filter ? "dim" : ""].join(" ");
+        return (
+          <div key={s.id} className={cls} onClick={() => onOpen?.(s.id)}>
+            <span className="no">{String(s.seat_no).padStart(2, "0")}</span>
+            <span className="roll">{s.roll.slice(-3)}</span>
+            {mode === "live" && s.flags > 0 && <span className="badge">{s.flags}</span>}
+            <span className="now">{mode === "lobby" ? lobbyNote(s) : s.status === "done" ? "Submitted" : s.fg_app}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+`console/src/pages/Login.tsx`:
+```tsx
+import { useState } from "react";
+import { api } from "../api";
+
+export default function Login({ onDone }: { onDone: () => void }) {
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState("");
+  return (
+    <form className="card login" onSubmit={async (e) => {
+      e.preventDefault();
+      try { await api.login(pin); onDone(); } catch { setErr("Wrong PIN"); }
+    }}>
+      <div className="logo"><img src="/logo.svg" width={26} height={26} alt="" />Tide</div>
+      <label className="lbl">Teacher PIN</label>
+      <input className="input mono" autoFocus inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} />
+      {err && <div style={{ color: "var(--crit)" }}>{err}</div>}
+      <button className="btn primary lg">Open console</button>
+    </form>
+  );
+}
+```
+
+`console/src/pages/Setup.tsx`:
+```tsx
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import TopBar from "../components/TopBar";
+import type { Page } from "../App";
+import type { Room } from "../types";
+
+const ICON: Record<string, [string, string]> = {
+  "VS Code": ["#0078D4", "VS"], CodeBlocks: ["#C2410C", "CB"], Terminal: ["#334155", ">_"], Explorer: ["#F5B400", "E"],
+  Wireshark: ["#1679A7", "W"], VMware: ["#6D28D9", "VM"], Notepad: ["#0EA5E9", "N"],
+};
+
+export default function Setup({ room, page, onPage, onCreated }:
+  { room: Room; page: Page; onPage: (p: Page) => void; onCreated: () => void; onOpen: (id: number) => void }) {
+  const [title, setTitle] = useState("CN Lab Test");
+  const [minutes, setMinutes] = useState(90);
+  const [catalog, setCatalog] = useState<{ apps: string[]; presets: Record<string, string[]> } | null>(null);
+  const [preset, setPreset] = useState("networking");
+  const [apps, setApps] = useState<Set<string>>(new Set());
+  const [files, setFiles] = useState<{ A: File[]; B: File[] }>({ A: [], B: [] });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => { api.catalog().then((c) => { setCatalog(c); setApps(new Set(c.presets.networking)); }); }, []);
+  const choose = (p: string) => { setPreset(p); if (catalog?.presets[p]) setApps(new Set(catalog.presets[p])); };
+  const toggle = (a: string) => { const n = new Set(apps); n.has(a) ? n.delete(a) : n.add(a); setApps(n); setPreset("custom"); };
+
+  async function create() {
+    setBusy(true); setErr("");
+    try {
+      const exam = await api.createExam(title, minutes, [...apps]);
+      for (const s of ["A", "B"] as const) for (const f of files[s]) await api.upload(exam.id, s, f);
+      onCreated();
+    } catch (e) { setErr(String((e as Error).message)); } finally { setBusy(false); }
+  }
+
+  return (
+    <section>
+      <TopBar room={room} page={page} onPage={onPage} />
+      <div className="card setup">
+        <h1>New lab test</h1>
+        <div className="sub">Questions stay here until you press Start.</div>
+        <div className="row">
+          <div><label className="lbl">Title</label><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div><label className="lbl">Duration</label>
+            <div className="stepper"><button onClick={() => setMinutes(Math.max(5, minutes - 5))}>−</button>
+              <div>{minutes} min</div><button onClick={() => setMinutes(Math.min(300, minutes + 5))}>+</button></div></div>
+        </div>
+        <hr className="sep" />
+        <label className="lbl">Question sets</label>
+        <div className="sets">
+          {(["A", "B"] as const).map((s) => (
+            <label key={s} className="drop">
+              <div className="hd"><h2>Set {s}</h2><span className="tag">{s === "A" ? "Odd seats · 1, 3, 5…" : "Even seats · 2, 4, 6…"}</span></div>
+              {files[s].map((f) => <div key={f.name} className="file">{f.name}</div>)}
+              <span className="addfile">+ Add files</span>
+              <input type="file" multiple hidden onChange={(e) => setFiles({ ...files, [s]: [...files[s], ...Array.from(e.target.files ?? [])] })} />
+            </label>
+          ))}
+        </div>
+        <hr className="sep" />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <label className="lbl" style={{ margin: 0 }}>Allowed apps</label>
+          <div className="seg">{["networking", "programming", "custom"].map((p) =>
+            <button key={p} className={preset === p ? "on" : ""} onClick={() => choose(p)}>{p[0].toUpperCase() + p.slice(1)}</button>)}</div>
+        </div>
+        <div className="apps">{catalog?.apps.map((a) => (
+          <span key={a} className={`app ${apps.has(a) ? "" : "off"}`} onClick={() => toggle(a)}>
+            <span className="ic" style={{ background: ICON[a]?.[0] ?? "#64748B" }}>{ICON[a]?.[1] ?? a[0]}</span>{a}</span>))}</div>
+        <div className="blocked"><div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, internet.{" "}
+          <span style={{ opacity: 0.7 }}>Browsers only for local files. Unknown apps are checked by Jev.</span></div></div>
+        {err && <div style={{ color: "var(--crit)", marginTop: 12 }}>{err}</div>}
+        <div className="setup-foot"><button className="btn primary lg" disabled={busy || !title} onClick={create}>
+          {busy ? "Creating…" : "Create & open lobby"}</button></div>
+      </div>
+    </section>
+  );
+}
+```
+
+`console/src/pages/Lobby.tsx`:
+```tsx
+import { api } from "../api";
+import SeatGrid from "../components/SeatGrid";
+import TopBar from "../components/TopBar";
+import type { Page } from "../App";
+import type { Room } from "../types";
+
+export default function Lobby({ room, page, onPage, onOpen }:
+  { room: Room; page: Page; onPage: (p: Page) => void; onOpen: (id: number) => void }) {
+  const seats = Object.values(room.seats);
+  const joined = seats.filter((s) => s.state !== "lobby").length;
+  const ready = seats.filter((s) => s.state === "ready").length;
+  const exam = room.exam;
+  return (
+    <section>
+      <TopBar room={room} page={page} onPage={onPage} />
+      <div className="page lobby">
+        <div className="card joincard">
+          <div className="sub">Join code</div>
+          <div className="code">{exam?.join_code ?? "——————"}</div>
+          <div className="sub mono" style={{ fontSize: 12, marginTop: -10 }}>Students: open Tide, enter this code</div>
+          <hr className="sep" style={{ margin: "4px 0" }} />
+          <div className="joined">{joined}<small> / 60</small></div>
+          <div className="bar"><i style={{ width: `${Math.min(100, (joined / 60) * 100)}%` }} /></div>
+          <div className="legend">
+            <span><i style={{ background: "var(--ok)" }} />Ready</span><span><i style={{ background: "var(--warn)" }} />Check</span>
+            <span><i style={{ background: "var(--crit)" }} />Internet</span><span><i style={{ border: "1.5px dashed #C2C9D2" }} />Waiting</span>
+          </div>
+          <button className="btn primary lg" style={{ justifyContent: "center" }} disabled={!exam || exam.state !== "lobby" || ready === 0}
+            onClick={() => api.start()}>Start exam · {Math.round((exam?.duration_s ?? 0) / 60)} min</button>
+          <div className="sub" style={{ fontSize: 12 }}>Red seats won't receive questions.</div>
+        </div>
+        <div className="card grid-card">
+          <div className="grid-head"><h2>Seats</h2><span className="sub">· pre-flight</span></div>
+          <SeatGrid room={room} mode="lobby" onOpen={onOpen} />
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+- [ ] **Step 2: Type-check**
+
+Run: `cd console && npx tsc --noEmit`
+Expected: errors only for the missing `Live`, `Results`, `SeatDrawer` modules (built in Tasks 23–24). No other errors.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add console
+git commit -m "feat(console): shell, login, setup and lobby"
+```
+
+### Task 23: Live room — grid, alert feed, clock, controls
+
+**Files:**
+- Create: `console/src/components/AlertFeed.tsx`, `console/src/pages/Live.tsx`
+
+**Interfaces:**
+- Consumes: `openAlerts`, `counts`, `remaining`, `fmtClock`, `api.extend/notice/simulate`
+- Produces: `<AlertFeed room onOpen>`, `<Live room page onPage onOpen>`
+
+- [ ] **Step 1: Implement**
+
+`console/src/components/AlertFeed.tsx`:
+```tsx
+import { openAlerts } from "../state";
+import type { Room } from "../types";
+
+const SEV_CLASS = { critical: "crit", high: "crit", medium: "warn", info: "off" } as const;
+const time = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+export default function AlertFeed({ room, onOpen }: { room: Room; onOpen: (seatId: number) => void }) {
+  const alerts = openAlerts(room);
+  return (
+    <div className="card feed">
+      <div className="feed-hd"><h2>Alerts</h2><span className="sub">· {alerts.length} open</span></div>
+      <div className="feed-list">
+        {alerts.map((a) => (
+          <div key={a.id} className={`alert ${a.kind === "agent_offline" ? "off" : SEV_CLASS[a.severity]}`} onClick={() => onOpen(a.seat_id)}>
+            <div className="sico">{String(a.seat_no).padStart(2, "0")}</div>
+            <div>
+              <div className="t">{a.title}</div>
+              <div className="m">PC-{String(a.seat_no).padStart(2, "0")}
+                {a.source === "jev" && <span className="src jev">Jev {a.confidence?.toFixed(2)}</span>}
+                {a.source === "rule" && <span className="src rule">Rule</span>}
+                {(a.action === "close_tab" || a.action === "kill") && <span className="acted">Auto-closed</span>}
+              </div>
+            </div>
+            <time>{time(a.ts)}</time>
+          </div>
+        ))}
+        {alerts.length === 0 && <div className="sub" style={{ padding: 18 }}>All quiet.</div>}
+      </div>
+    </div>
+  );
+}
+```
+
+`console/src/pages/Live.tsx`:
+```tsx
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import AlertFeed from "../components/AlertFeed";
+import SeatGrid from "../components/SeatGrid";
+import TopBar from "../components/TopBar";
+import { counts, fmtClock, remaining } from "../state";
+import type { Page } from "../App";
+import type { Room } from "../types";
+
+const SIM = [["ai_site", "ChatGPT closed"], ["jev_ai", "Jev: AI site"], ["internet", "Internet on"],
+  ["old_code", "Old code reused"], ["usb", "USB drive"]] as const;
+
+export default function Live({ room, page, onPage, onOpen }:
+  { room: Room; page: Page; onPage: (p: Page) => void; onOpen: (id: number) => void }) {
+  const [, tick] = useState(0);
+  const [filter, setFilter] = useState("all");
+  const [menu, setMenu] = useState(false);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
+  const c = counts(room);
+  const real = Object.values(room.seats).find((s) => !s.simulated);
+  return (
+    <section>
+      <TopBar room={room} page={page} onPage={onPage}>
+        <div className="clock">{fmtClock(remaining(room.exam, room.clockOffset))}</div>
+        <button className="btn" onClick={() => api.extend(5)}>+ 5 min</button>
+        <button className="btn" onClick={() => { const t = prompt("Notice to all students"); if (t) api.notice(t); }}>Notice</button>
+        <div className="menu">
+          <button className="btn" onClick={() => setMenu(!menu)}>Simulate</button>
+          {menu && <div className="menu-list">{SIM.map(([k, label]) => (
+            <button key={k} onClick={() => { setMenu(false); api.simulate(real?.seat_no ?? 7, k); }}>{label} · PC-{String(real?.seat_no ?? 7).padStart(2, "0")}</button>))}</div>}
+        </div>
+      </TopBar>
+      <div className="page">
+        <div className="summary">
+          {([["ok", "Working", "var(--ok)"], ["warn", "Review", "var(--warn)"], ["crit", "Alert", "var(--crit)"], ["off", "Offline", "var(--off)"]] as const)
+            .map(([k, label, color]) => (
+              <div key={k} className="card stat"><div className="sw" style={{ background: color }} />
+                <div><div className="n">{c[k]}</div><div className="l">{label}</div></div></div>))}
+        </div>
+        <div className="live">
+          <div className="card grid-card">
+            <div className="grid-head"><h2>Lab</h2><span className="sub">· {Object.keys(room.seats).length} seats</span>
+              <div className="spacer" />
+              <div className="filters">{([["all", "All"], ["crit", "Alert"], ["warn", "Review"], ["off", "Offline"]] as const).map(([f, label]) => (
+                <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{label}</button>))}</div>
+            </div>
+            <SeatGrid room={room} mode="live" filter={filter} onOpen={onOpen} />
+          </div>
+          <AlertFeed room={room} onOpen={onOpen} />
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+- [ ] **Step 2: Type-check**
+
+Run: `cd console && npx tsc --noEmit`
+Expected: only the `Results` and `SeatDrawer` import errors remain.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add console
+git commit -m "feat(console): live room grid, alert feed, clock and controls"
+```
+
+### Task 24: Seat drawer and Results
+
+**Files:**
+- Create: `console/src/components/SeatDrawer.tsx`, `console/src/pages/Results.tsx`
+
+**Interfaces:**
+- Consumes: `api.seat/review/warn/extend/forceSubmit/shotUrl/results/csvUrl/submissionUrl`
+- Produces: `<SeatDrawer seatId room onClose>` (reloads when that seat's flags or events change), `<Results room page onPage onOpen>`
+
+- [ ] **Step 1: Implement**
+
+`console/src/components/SeatDrawer.tsx`:
+```tsx
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import type { Room, SeatDetail, TimelineItem } from "../types";
+
+const t = (ts: number) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const DOT = { critical: "crit", high: "crit", medium: "warn", info: "info" } as const;
+const STATUS = { ok: "Working", warn: "Review", crit: "Alert", off: "Offline", wait: "Waiting", done: "Submitted" } as const;
+
+function Item({ i, reload }: { i: TimelineItem; reload: () => void }) {
+  if (i.type === "event")
+    return <div className={`ev ${i.kind === "start" || i.kind === "joined" ? "brand" : "info"}`}><div className="h"><time>{t(i.ts)}</time><span className="x">{i.text}</span></div></div>;
+  const acted = i.action === "close_tab" || i.action === "kill";
+  return (
+    <div className={`ev ${DOT[i.severity]}`}>
+      <div className="h"><time>{t(i.ts)}</time><span className="x">{i.title}</span></div>
+      <div className="card">
+        {i.has_shot && <div className="shot"><img src={api.shotUrl(i.id)} alt="screenshot" /></div>}
+        {i.source === "jev" && i.confidence != null && (
+          <div className="conf"><span className="src jev">Jev</span>{i.label}
+            <div className="meter"><i style={{ width: `${i.confidence * 100}%` }} /></div><b>{i.confidence.toFixed(2)}</b></div>)}
+        <div className="fl-act">
+          {acted ? <span className="acted">Auto-closed</span> : <span className="src rule">{i.source === "jev" ? "Jev" : "Rule"}</span>}
+          <span className="spacer" />
+          {i.status === "open" ? <>
+            <button className="btn" onClick={() => api.review(i.id, "dismissed").then(reload)}>Dismiss</button>
+            <button className="btn danger" onClick={() => api.review(i.id, "confirmed").then(reload)}>Confirm</button>
+          </> : <span className="sub">{i.status}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Growth({ d }: { d: SeatDetail }) {
+  const g = d.growth;
+  if (g.length < 2) return <div className="sub">Not enough snapshots yet.</div>;
+  const t0 = g[0].ts, t1 = g[g.length - 1].ts || t0 + 1, max = Math.max(...g.map((p) => p.lines), 1);
+  const x = (ts: number) => ((ts - t0) / Math.max(1, t1 - t0)) * 500;
+  const y = (n: number) => 160 - (n / max) * 140;
+  const pts = g.map((p) => `${x(p.ts)},${y(p.lines)}`).join(" ");
+  const bursts = d.timeline.filter((i) => i.type === "flag" && i.kind === "code_burst");
+  return (
+    <svg viewBox="0 0 500 170" preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke="#0B7A83" strokeWidth={2.5} />
+      {bursts.map((b) => <line key={b.id} x1={x(b.ts)} x2={x(b.ts)} y1={10} y2={165} stroke="#DC2626" strokeDasharray="4 4" />)}
+    </svg>
+  );
+}
+
+export default function SeatDrawer({ seatId, room, onClose }: { seatId: number | null; room: Room; onClose: () => void }) {
+  const [d, setD] = useState<SeatDetail | null>(null);
+  const [tab, setTab] = useState<"tl" | "code">("tl");
+  const version = seatId ? Object.values(room.flags).filter((f) => f.seat_id === seatId).map((f) => `${f.id}${f.status}${f.has_shot}`).join()
+    + (room.lastEvent?.seat_id === seatId ? room.lastEvent.id : "") : "";
+  const reload = () => { if (seatId) api.seat(seatId).then(setD); };
+  useEffect(() => { setD(null); setTab("tl"); }, [seatId]);
+  useEffect(reload, [seatId, version]);
+  const s = d?.seat;
+  return (
+    <>
+      <div className={`scrim ${seatId ? "on" : ""}`} onClick={onClose} />
+      <aside className={`drawer ${seatId ? "on" : ""}`}>
+        {s && <>
+          <div className="dr-hd">
+            <div className="dr-title"><span className="big">PC-{String(s.seat_no).padStart(2, "0")}</span>
+              <span className={`status-pill ${s.status === "off" ? "warn" : s.status}`}>{STATUS[s.status]}</span>
+              <div className="spacer" /><button className="btn ghost" onClick={onClose}>✕</button></div>
+            <div className="dr-meta"><span className="mono">{s.roll}</span><span>Set {s.set ?? "—"}</span><span>Now: {s.fg_app || "—"}</span></div>
+            <div className="dr-actions">
+              <button className="btn" onClick={() => api.warn(s.id)}>Warn</button>
+              <button className="btn" onClick={() => api.extend(5, s.id)}>+ 5 min</button>
+              <button className="btn danger" onClick={() => confirm("Force submit this seat?") && api.forceSubmit(s.id)}>Force submit</button>
+            </div>
+          </div>
+          <div className="tabs">
+            <button className={tab === "tl" ? "on" : ""} onClick={() => setTab("tl")}>Timeline</button>
+            <button className={tab === "code" ? "on" : ""} onClick={() => setTab("code")}>Code</button>
+          </div>
+          <div className="dr-body">
+            {tab === "tl" ? <div className="tl">{d!.timeline.map((i) => <Item key={`${i.type}${i.id}`} i={i} reload={reload} />)}</div> : <>
+              <div className="card chart"><h2>Lines in exam folder</h2><Growth d={d!} /></div>
+              <div className="files">{d!.files.map((f) => <div key={f.path} className="file">{f.path}<span className="spacer" /><span className="sub">{f.lines} lines</span></div>)}</div>
+            </>}
+          </div>
+        </>}
+      </aside>
+    </>
+  );
+}
+```
+
+`console/src/pages/Results.tsx`:
+```tsx
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import TopBar from "../components/TopBar";
+import type { Page } from "../App";
+import type { Results as R, Room } from "../types";
+
+export default function Results({ room, page, onPage, onOpen }:
+  { room: Room; page: Page; onPage: (p: Page) => void; onOpen: (id: number) => void }) {
+  const [r, setR] = useState<R | null>(null);
+  useEffect(() => { api.results().then(setR); }, [room.flags]);
+  const submitted = r?.rows.filter((x) => x.submitted_at).length ?? 0;
+  const sev = (s: string) => (s === "medium" ? "warn" : "crit");
+  return (
+    <section>
+      <TopBar room={room} page={page} onPage={onPage}>
+        <span className="chip">{submitted}/{r?.rows.length ?? 0} submitted</span>
+        <a className="btn primary" href={api.csvUrl()}>Export CSV</a>
+      </TopBar>
+      <div className="page results">
+        <div className="card" style={{ overflow: "hidden" }}>
+          <table>
+            <thead><tr><th>Seat</th><th>Roll</th><th>Set</th><th>Submitted</th><th>Flags</th><th>Max match</th><th /></tr></thead>
+            <tbody>{r?.rows.map((x) => (
+              <tr key={x.seat_id} onClick={() => onOpen(x.seat_id)} style={{ cursor: "pointer" }}>
+                <td><b>PC-{String(x.seat_no).padStart(2, "0")}</b></td><td className="mono">{x.roll}</td><td>{x.set ?? "—"}</td>
+                <td>{x.submitted_at ? new Date(x.submitted_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td><div className="fchips">{x.flags.length ? x.flags.map((f, i) => <span key={i} className={`fc ${sev(f.severity)}`}>{f.title}</span>) : <span className="sub">—</span>}</div></td>
+                <td>{x.max_match != null ? <b style={{ color: x.max_match >= 80 ? "var(--crit)" : undefined }}>{x.max_match}%</b> : <span className="sub">—</span>}</td>
+                <td>{x.submitted_at && <a className="btn ghost" onClick={(e) => e.stopPropagation()} href={api.submissionUrl(x.seat_id)}>Files</a>}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div className="card sim"><h2>Similar submissions</h2>
+            {r?.pairs.map((p, i) => (
+              <div key={i} className="pair"><b>PC-{String(p.a).padStart(2, "0")}</b>↔
+                {p.b != null ? <b>PC-{String(p.b).padStart(2, "0")}</b> : <span className="mono" style={{ fontSize: 12 }}>{p.b_path}</span>}
+                <span className={`pct ${p.pct >= 80 ? "hi" : ""}`}>{p.pct}%</span></div>))}
+            {!r?.pairs.length && <span className="sub">None above 40%.</span>}
+          </div>
+          <div className="card sim"><h2>Flags this exam</h2>
+            {r && Object.entries(r.flag_counts).map(([k, n]) => <div key={k} className="pair">{k}<span className="pct">{n}</span></div>)}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+- [ ] **Step 2: Type-check, test, build**
+
+Run: `cd console && npx tsc --noEmit && npm test && npm run build`
+Expected: no type errors, 6 tests pass, `console/dist/index.html` exists.
+
+- [ ] **Step 3: See it against the real server**
+
+Run: `tide-server --demo` (after the build it serves `console/dist`), open http://localhost:8765, PIN `2468`.
+Expected: the Lobby shows 57/60 with seat 19 red and 45 amber, then 58–60 join within ~12 s. Press Start: Live shows the grid; scripted alerts appear at +20 s, +35 s…; clicking seat 14 opens the drawer with its timeline; **Simulate → Jev: AI site** on seat 7 adds a "Jev 0.96" alert. Compare each screen side by side with `design/mock-ui.html`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add console
+git commit -m "feat(console): seat drawer with evidence and results with similarity and CSV"
+```
+
+---
+
+## Phase 5 — End-to-end rehearsal
+
+### Task 25: Rehearse the demo and ship
+
+**Files:**
+- Modify: `README.md` (status line → "Demo build working"), `docs/DEMO.md` if any step changed during rehearsal
+
+- [ ] **Step 1: Single device (any OS, fake PC)** — follow `docs/DEVELOPMENT.md` §4. Run every command in the fake-PC list and confirm each console reaction.
+- [ ] **Step 2: Two Windows PCs** — follow `docs/SETUP_TWO_PCS.md` start to finish on the real hardware, then run the `docs/DEMO.md` script twice. Time it: under 5 minutes.
+- [ ] **Step 3: Acceptance checklist** — tick all 10 criteria in `docs/specs/2026-09-28-tide-design.md` §5. Note any failure as an issue, not a silent skip.
+- [ ] **Step 4: Full test run**
+
+Run: `pytest common/tests server/tests && (cd agent && pytest tests) && (cd console && npm test)`
+Expected: all green.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "chore: demo rehearsal fixes"
+```
