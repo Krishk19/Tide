@@ -3763,3 +3763,1565 @@ git commit -m "feat(server): LAN discovery, demo mode with 59 simulated seats, C
 ```
 
 ---
+## Phase 3 — Student agent (`agent/`)
+
+The agent's logic runs and is tested on any OS. Only `tide_agent/win/` needs Windows. `tide_agent/fake.py` is a simulated PC you drive by typing commands, used for single-device end-to-end testing on a Mac or Linux laptop.
+
+### Task 13: Agent foundation — platform types, server clock, outbox, link
+
+**Files:**
+- Create: `agent/pyproject.toml`, `agent/tide_agent/__init__.py`, `agent/tide_agent/platform.py`, `agent/tide_agent/clock.py`, `agent/tide_agent/outbox.py`, `agent/tide_agent/link.py`
+- Test: `agent/tests/test_link.py`
+
+**Interfaces:**
+- Produces:
+  - `WindowInfo(hwnd, pid, process, exe, title, description="", original_name="")`, `ProcInfo(pid, name, exe="", description="", original_name="")`, `AdapterInfo(name, up, wifi=False, ssid=None)`, `Peer(ip, port, process="")` (frozen dataclasses)
+  - `Platform` protocol: `foreground() -> WindowInfo | None`, `browser_host(hwnd, process) -> str | None` (`""` = empty/local page, `None` = unreadable), `processes() -> dict[int, ProcInfo]`, `kill(pid)`, `adapters() -> dict[str, AdapterInfo]`, `internet() -> bool`, `lan_peers(server_ip) -> list[Peer]`, `removable_drives() -> set[str]`, `clipboard_seq() -> int`, `clipboard_text() -> str | None`, `close_tab(hwnd)`, `screenshot() -> bytes | None`
+  - `compute_offset(sent, server_time, received) -> float`; `ServerClock(offset=0.0)` with `now()`, `to_local(server_ts)`
+  - `Outbox(path)` with `append(msg)`, `drain() -> list[dict]`
+  - `Link(url, token, on_message, outbox, version="0.1.0")` with `async run()`, `async send(msg) -> bool`, `connected: asyncio.Event`, `offset: float`. `on_message` receives `welcome` with `_offset` added. On close code 4401 it calls `on_message({"t": "auth_failed"})` and stops.
+
+- [ ] **Step 1: Package metadata**
+
+`agent/pyproject.toml`:
+```toml
+[project]
+name = "tide-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "tide-common", "websockets>=13", "httpx>=0.27", "psutil>=6", "pywebview>=5.3", "Pillow>=10",
+  "pywin32>=306; sys_platform == 'win32'",
+  "uiautomation>=2.0.20; sys_platform == 'win32'",
+  "mss>=9; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "pyinstaller>=6.10; sys_platform == 'win32'"]
+
+[project.scripts]
+tide-agent = "tide_agent.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tide_agent"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+```
+`agent/tide_agent/__init__.py`: `__version__ = "0.1.0"`
+
+- [ ] **Step 2: Write the failing tests**
+
+`agent/tests/test_link.py`:
+```python
+import asyncio
+import json
+
+import websockets
+
+from tide_agent.clock import ServerClock, compute_offset
+from tide_agent.link import Link
+from tide_agent.outbox import Outbox
+
+
+def test_compute_offset_uses_midpoint():
+    assert compute_offset(sent=100.0, server_time=160.5, received=101.0) == 60.0
+
+
+def test_server_clock_conversion():
+    c = ServerClock(offset=60.0)
+    assert c.to_local(1060.0) == 1000.0
+
+
+def test_outbox_roundtrip(tmp_path):
+    ob = Outbox(tmp_path / "o.jsonl")
+    ob.append({"t": "flag", "n": 1})
+    ob.append({"t": "flag", "n": 2})
+    assert [m["n"] for m in ob.drain()] == [1, 2]
+    assert ob.drain() == []
+
+
+async def test_link_buffers_offline_then_flushes(tmp_path):
+    """Review focus #4: flags raised while the server is unreachable arrive later; heartbeats don't."""
+    received: list[dict] = []
+
+    async def handler(ws):
+        hello = json.loads(await ws.recv())
+        assert hello["t"] == "hello" and hello["token"] == "tok"
+        await ws.send(json.dumps({"t": "welcome", "server_time": 0.0, "policy": {}}))
+        async for raw in ws:
+            received.append(json.loads(raw))
+
+    got: list[dict] = []
+
+    async def on_message(m):
+        got.append(m)
+
+    link = Link("ws://127.0.0.1:1/ws/agent", "tok", on_message, Outbox(tmp_path / "o.jsonl"))
+    assert await link.send({"t": "flag", "ref": "a"}) is False
+    assert await link.send({"t": "heartbeat"}) is False
+
+    async with websockets.serve(handler, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        link.url = f"ws://127.0.0.1:{port}/ws/agent"
+        task = asyncio.create_task(link.run())
+        await asyncio.wait_for(link.connected.wait(), 5)
+        assert await link.send({"t": "event", "n": 1}) is True
+        await asyncio.sleep(0.2)
+        task.cancel()
+    assert got[0]["t"] == "welcome" and "_offset" in got[0]
+    assert [m["t"] for m in received] == ["flag", "event"]
+
+
+async def test_link_stops_on_4401(tmp_path):
+    async def handler(ws):
+        await ws.recv()
+        await ws.close(code=4401)
+
+    got: list[dict] = []
+
+    async def on_message(m):
+        got.append(m)
+
+    async with websockets.serve(handler, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        link = Link(f"ws://127.0.0.1:{port}/ws/agent", "bad", on_message, Outbox(tmp_path / "o.jsonl"))
+        await asyncio.wait_for(link.run(), 5)
+    assert got == [{"t": "auth_failed"}]
+```
+
+- [ ] **Step 3: Run tests to verify they fail**
+
+Run: `pytest agent/tests/test_link.py -v`
+Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.clock'`
+
+- [ ] **Step 4: Implement**
+
+`agent/tide_agent/platform.py`:
+```python
+"""Everything the agent needs from the OS. WinPlatform (win/) is real; FakePlatform (fake.py) is for dev and tests."""
+from dataclasses import dataclass
+from typing import Protocol
+
+
+@dataclass(frozen=True)
+class WindowInfo:
+    hwnd: int
+    pid: int
+    process: str
+    exe: str
+    title: str
+    description: str = ""
+    original_name: str = ""
+
+
+@dataclass(frozen=True)
+class ProcInfo:
+    pid: int
+    name: str
+    exe: str = ""
+    description: str = ""
+    original_name: str = ""
+
+
+@dataclass(frozen=True)
+class AdapterInfo:
+    name: str
+    up: bool
+    wifi: bool = False
+    ssid: str | None = None
+
+
+@dataclass(frozen=True)
+class Peer:
+    ip: str
+    port: int
+    process: str = ""
+
+
+class Platform(Protocol):
+    def foreground(self) -> WindowInfo | None: ...
+    def browser_host(self, hwnd: int, process: str) -> str | None: ...
+    def processes(self) -> dict[int, ProcInfo]: ...
+    def kill(self, pid: int) -> None: ...
+    def adapters(self) -> dict[str, AdapterInfo]: ...
+    def internet(self) -> bool: ...
+    def lan_peers(self, server_ip: str) -> list[Peer]: ...
+    def removable_drives(self) -> set[str]: ...
+    def clipboard_seq(self) -> int: ...
+    def clipboard_text(self) -> str | None: ...
+    def close_tab(self, hwnd: int) -> None: ...
+    def screenshot(self) -> bytes | None: ...
+```
+
+`agent/tide_agent/clock.py`:
+```python
+import time
+from dataclasses import dataclass
+
+
+def compute_offset(sent: float, server_time: float, received: float) -> float:
+    """server_now - local_now, assuming the server stamped its reply halfway through the round trip."""
+    return server_time - (sent + received) / 2
+
+
+@dataclass
+class ServerClock:
+    offset: float = 0.0
+
+    def now(self) -> float:
+        return time.time() + self.offset
+
+    def to_local(self, server_ts: float) -> float:
+        return server_ts - self.offset
+```
+
+`agent/tide_agent/outbox.py`:
+```python
+import json
+import threading
+from pathlib import Path
+
+
+class Outbox:
+    """Messages that couldn't be sent. On disk, so they survive an agent restart."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+
+    def append(self, message: dict) -> None:
+        with self._lock, self.path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(message) + "\n")
+
+    def drain(self) -> list[dict]:
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+            self.path.unlink()
+        return [json.loads(line) for line in lines if line.strip()]
+```
+
+`agent/tide_agent/link.py`:
+```python
+import asyncio
+import json
+import time
+from typing import Awaitable, Callable
+
+import websockets
+
+from tide_common.protocol import msg
+
+from .clock import compute_offset
+from .outbox import Outbox
+
+NOT_BUFFERED = {"heartbeat"}
+
+
+class Link:
+    """One WebSocket to the teacher server, reconnecting forever. Sends while offline go to the outbox."""
+
+    def __init__(self, url: str, token: str, on_message: Callable[[dict], Awaitable[None]],
+                 outbox: Outbox, version: str = "0.1.0") -> None:
+        self.url, self.token, self.on_message, self.outbox, self.version = url, token, on_message, outbox, version
+        self.ws = None
+        self.connected = asyncio.Event()
+        self.offset = 0.0
+
+    async def run(self) -> None:
+        backoff = 1.0
+        while True:
+            try:
+                async with websockets.connect(self.url, open_timeout=5, ping_interval=10) as ws:
+                    sent = time.time()
+                    await ws.send(json.dumps(msg("hello", token=self.token, agent_version=self.version,
+                                                 local_time=sent)))
+                    welcome = json.loads(await ws.recv())
+                    if welcome.get("t") != "welcome":
+                        raise ConnectionError("expected welcome")
+                    self.offset = compute_offset(sent, welcome["server_time"], time.time())
+                    welcome["_offset"] = self.offset
+                    self.ws = ws
+                    backoff = 1.0
+                    await self.on_message(welcome)
+                    for pending in self.outbox.drain():
+                        await ws.send(json.dumps(pending))
+                    self.connected.set()
+                    async for raw in ws:
+                        await self.on_message(json.loads(raw))
+            except websockets.ConnectionClosed as e:
+                if e.rcvd is not None and e.rcvd.code == 4401:
+                    self.ws = None
+                    self.connected.clear()
+                    await self.on_message({"t": "auth_failed"})
+                    return
+            except (OSError, asyncio.TimeoutError, ConnectionError, websockets.WebSocketException):
+                pass
+            finally:
+                self.ws = None
+                self.connected.clear()
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 5.0)
+
+    async def send(self, message: dict) -> bool:
+        ws = self.ws
+        if ws is not None:
+            try:
+                await ws.send(json.dumps(message))
+                return True
+            except Exception:
+                pass
+        if message.get("t") not in NOT_BUFFERED:
+            self.outbox.append(message)
+        return False
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `pytest agent/tests/test_link.py -v`
+Expected: 6 passed
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): platform interface, server clock, outbox, reconnecting link"
+```
+
+### Task 14: Server discovery and pairing client
+
+**Files:**
+- Create: `agent/tide_agent/discovery.py`, `agent/tide_agent/pairing.py`
+- Test: `agent/tests/test_pairing.py`
+
+**Interfaces:**
+- Produces:
+  - `discover(timeout=2.0, port=47800, targets=("255.255.255.255",)) -> tuple[str, int] | None`, `parse_server(text, default_port=8765) -> tuple[str, int]`
+  - `PairResult(token, seat_id, seat_no, roll, exam_title, server_time)`, `PairError(message)`
+  - `async pair(base_url, join_code, roll, seat_no, hostname, client=None) -> PairResult`
+  - `async submit(base_url, token, zip_bytes, auto, client=None) -> None` (raises `PairError` on failure)
+
+- [ ] **Step 1: Write the failing tests**
+
+`agent/tests/test_pairing.py`:
+```python
+import json
+import socket
+import threading
+
+import httpx
+import pytest
+
+from tide_agent.discovery import discover, parse_server
+from tide_agent.pairing import PairError, pair, submit
+
+
+def test_parse_server():
+    assert parse_server("10.10.0.1") == ("10.10.0.1", 8765)
+    assert parse_server("10.10.0.1:9000") == ("10.10.0.1", 9000)
+
+
+def test_discover_finds_responder():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+
+    def respond():
+        data, addr = sock.recvfrom(64)
+        if data == b"TIDE?":
+            sock.sendto(json.dumps({"tide": 1, "port": 8765}).encode(), addr)
+
+    threading.Thread(target=respond, daemon=True).start()
+    assert discover(timeout=2, port=port, targets=("127.0.0.1",)) == ("127.0.0.1", 8765)
+    sock.close()
+
+
+def test_discover_times_out():
+    assert discover(timeout=0.2, port=9, targets=("127.0.0.1",)) is None
+
+
+async def test_pair_ok_and_error():
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        if body["join_code"] == "BAD":
+            return httpx.Response(404, json={"detail": "Unknown join code"})
+        return httpx.Response(200, json={"token": "t", "seat_id": 1, "seat_no": 7, "roll": "R",
+                                         "exam_title": "CN", "server_time": 1.0})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    r = await pair("http://s:8765", "K7Q2XM", "r", 7, "PC", client=client)
+    assert (r.token, r.seat_no) == ("t", 7)
+    with pytest.raises(PairError, match="Unknown join code"):
+        await pair("http://s:8765", "BAD", "r", 7, "PC", client=client)
+
+
+async def test_submit_posts_zip():
+    seen = {}
+
+    def handler(request: httpx.Request):
+        seen["body"] = request.content
+        return httpx.Response(200, json={"ok": True})
+
+    await submit("http://s:8765", "t", b"PKzip", False,
+                 client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    assert b"PKzip" in seen["body"] and b'name="token"' in seen["body"]
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pytest agent/tests/test_pairing.py -v`
+Expected: FAIL, `ModuleNotFoundError`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/discovery.py`:
+```python
+import json
+import socket
+
+
+def parse_server(text: str, default_port: int = 8765) -> tuple[str, int]:
+    host, _, port = text.strip().partition(":")
+    return host, int(port) if port else default_port
+
+
+def discover(timeout: float = 2.0, port: int = 47800,
+             targets: tuple[str, ...] = ("255.255.255.255",)) -> tuple[str, int] | None:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.settimeout(timeout)
+        for target in targets:
+            s.sendto(b"TIDE?", (target, port))
+        data, addr = s.recvfrom(1024)
+        return addr[0], int(json.loads(data)["port"])
+    except (OSError, ValueError, KeyError):
+        return None
+    finally:
+        s.close()
+```
+
+`agent/tide_agent/pairing.py`:
+```python
+from dataclasses import dataclass
+
+import httpx
+
+
+class PairError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class PairResult:
+    token: str
+    seat_id: int
+    seat_no: int
+    roll: str
+    exam_title: str
+    server_time: float
+
+
+def _detail(r: httpx.Response) -> str:
+    try:
+        return str(r.json().get("detail") or r.text)
+    except ValueError:
+        return r.text or f"HTTP {r.status_code}"
+
+
+async def pair(base_url: str, join_code: str, roll: str, seat_no: int, hostname: str,
+               client: httpx.AsyncClient | None = None) -> PairResult:
+    client = client or httpx.AsyncClient(timeout=8)
+    try:
+        r = await client.post(f"{base_url}/api/pair", json={"join_code": join_code, "roll": roll,
+                                                               "seat_no": seat_no, "hostname": hostname})
+    except httpx.HTTPError as e:
+        raise PairError(f"Can't reach the teacher ({e.__class__.__name__})") from e
+    if r.status_code != 200:
+        raise PairError(_detail(r))
+    b = r.json()
+    return PairResult(b["token"], b["seat_id"], b["seat_no"], b["roll"], b["exam_title"], b["server_time"])
+
+
+async def submit(base_url: str, token: str, zip_bytes: bytes, auto: bool,
+                 client: httpx.AsyncClient | None = None) -> None:
+    client = client or httpx.AsyncClient(timeout=30)
+    try:
+        r = await client.post(f"{base_url}/api/submit", data={"token": token, "auto": str(auto).lower()},
+                              files={"file": ("submission.zip", zip_bytes, "application/zip")})
+    except httpx.HTTPError as e:
+        raise PairError(f"Submit failed ({e.__class__.__name__})") from e
+    if r.status_code != 200:
+        raise PairError(_detail(r))
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pytest agent/tests -v`
+Expected: all pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): LAN discovery and pairing/submit client"
+```
+
+### Task 15: Pre-exam file inventory and the exam folder
+
+**Files:**
+- Create: `agent/tide_agent/inventory.py`, `agent/tide_agent/exam_folder.py`
+- Test: `agent/tests/test_files.py`
+
+**Interfaces:**
+- Consumes: `fingerprints`, `similarity`
+- Produces:
+  - `TEXT_EXTS`, `InvFile(path, name, fp)`, `Inventory(files)` with `.match_title(title) -> str | None`, `.best_match(text, min_pct=60) -> tuple[str, int] | None`
+  - `build_inventory(roots, exclude=None, max_files=5000, max_bytes=200_000) -> Inventory`, `default_roots() -> list[Path]`
+  - `ExamFolder(root)` with `write_files(files: list[tuple[str, bytes]]) -> int` (never overwrites; records starter shas), `texts() -> dict[str,str]`, `changed_files() -> list[{path,text,sha}]` (skips unchanged starter files), `file_count()`, `zip_bytes() -> bytes`
+
+- [ ] **Step 1: Write the failing tests**
+
+`agent/tests/test_files.py`:
+```python
+import io
+import zipfile
+
+from tide_agent.exam_folder import ExamFolder
+from tide_agent.inventory import build_inventory
+
+OLD = "\n".join(["#include <stdio.h>", "int main() {", "  int a[100], n, best = 0;", '  scanf("%d", &n);',
+                 "  for (int i = 0; i < n; i++) {", '    scanf("%d", &a[i]);', "    if (a[i] > best) best = a[i];",
+                 "  }", '  printf("%d\\n", best);', "  return 0;", "}"])
+
+
+def make_tree(tmp_path):
+    old = tmp_path / "D" / "old"
+    old.mkdir(parents=True)
+    (old / "dsa_lab5.cpp").write_text(OLD)
+    (old / "notes.pdf").write_bytes(b"%PDF")
+    skipped = tmp_path / "D" / "node_modules"
+    skipped.mkdir()
+    (skipped / "x.js").write_text("ignored")
+    exam = tmp_path / "Exam" / "22BCS107"
+    exam.mkdir(parents=True)
+    (exam / "main.c").write_text("int main(){}")
+    return tmp_path / "D", tmp_path / "Exam"
+
+
+def test_inventory_indexes_and_skips(tmp_path):
+    root, exam = make_tree(tmp_path)
+    inv = build_inventory([root, exam], exclude=exam)
+    names = sorted(f.name for f in inv.files)
+    assert names == ["dsa_lab5.cpp", "notes.pdf"]
+
+
+def test_match_title_finds_old_file(tmp_path):
+    root, exam = make_tree(tmp_path)
+    inv = build_inventory([root], exclude=exam)
+    assert inv.match_title("dsa_lab5.cpp - old - Visual Studio Code").endswith("dsa_lab5.cpp")
+    assert inv.match_title("main.c - 22BCS107 - Visual Studio Code") is None
+
+
+def test_best_match_survives_renaming(tmp_path):
+    root, exam = make_tree(tmp_path)
+    inv = build_inventory([root], exclude=exam)
+    path, pct = inv.best_match(OLD.replace("best", "mx").replace("a[", "arr["))
+    assert path.endswith("dsa_lab5.cpp") and pct >= 80
+    assert inv.best_match("print('hello world')\n" * 3) is None
+
+
+def test_exam_folder_never_overwrites_and_skips_starters(tmp_path):
+    """Review focus #1: re-delivery after an agent restart must not wipe the student's work."""
+    f = ExamFolder(tmp_path / "Exam" / "22BCS107")
+    assert f.write_files([("questions.txt", b"Q1"), ("../evil.c", b"x")]) == 2
+    assert (f.root / "evil.c").exists() and not (tmp_path / "Exam" / "evil.c").exists()
+    assert f.changed_files() == []                      # starters unchanged -> nothing to send
+    (f.root / "evil.c").write_text("int main(){ return 1; }")
+    assert f.write_files([("evil.c", b"x")]) == 0      # re-delivery keeps the edit
+    changed = f.changed_files()
+    assert [c["path"] for c in changed] == ["evil.c"] and "return 1" in changed[0]["text"]
+    assert f.changed_files() == []                      # nothing new since last call
+    names = zipfile.ZipFile(io.BytesIO(f.zip_bytes())).namelist()
+    assert sorted(names) == ["evil.c", "questions.txt"]
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pytest agent/tests/test_files.py -v`
+Expected: FAIL, `ModuleNotFoundError`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/inventory.py`:
+```python
+"""What code/doc files existed before the exam. Used to spot old solutions being opened or pasted."""
+import os
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from tide_common.fingerprint import fingerprints, similarity
+
+TEXT_EXTS = {".c", ".cpp", ".cc", ".h", ".hpp", ".py", ".java", ".js", ".ts", ".sql", ".txt", ".md",
+             ".ipynb", ".cs", ".go", ".rs", ".sh"}
+DOC_EXTS = {".pdf", ".docx", ".doc", ".pptx"}
+SKIP_DIRS = {"appdata", "node_modules", ".git", "windows", "program files", "program files (x86)",
+             "$recycle.bin", "programdata", "system volume information", ".vscode", ".cache",
+             "__pycache__", "site-packages", "venv", ".venv", "library"}
+_FILENAME = re.compile(r"([\w\-.]+\.[A-Za-z0-9]{1,5})\b")
+
+
+@dataclass(frozen=True)
+class InvFile:
+    path: str
+    name: str
+    fp: frozenset[int] = field(default=frozenset(), compare=False)
+
+
+@dataclass
+class Inventory:
+    files: list[InvFile]
+
+    def __post_init__(self) -> None:
+        self._by_name: dict[str, list[str]] = {}
+        for f in self.files:
+            self._by_name.setdefault(f.name.lower(), []).append(f.path)
+
+    def match_title(self, title: str) -> str | None:
+        for token in _FILENAME.findall(title):
+            paths = self._by_name.get(token.lower())
+            if paths:
+                return paths[0]
+        return None
+
+    def best_match(self, text: str, min_pct: int = 60) -> tuple[str, int] | None:
+        fp = fingerprints(text)
+        if not fp:
+            return None
+        best: tuple[str, int] | None = None
+        for f in self.files:
+            if f.fp:
+                pct = round(similarity(fp, f.fp) * 100)
+                if pct >= min_pct and (best is None or pct > best[1]):
+                    best = (f.path, pct)
+        return best
+
+
+def build_inventory(roots: list[Path], exclude: Path | None = None, max_files: int = 5000,
+                    max_bytes: int = 200_000) -> Inventory:
+    files: list[InvFile] = []
+    excluded = exclude.resolve() if exclude else None
+    for root in roots:
+        if not root.exists():
+            continue
+        for dirpath, dirnames, filenames in os.walk(root):
+            here = Path(dirpath).resolve()
+            if excluded and (here == excluded or excluded in here.parents):
+                dirnames[:] = []
+                continue
+            dirnames[:] = [d for d in dirnames if d.lower() not in SKIP_DIRS and not d.startswith(".")]
+            for name in filenames:
+                ext = Path(name).suffix.lower()
+                if ext not in TEXT_EXTS and ext not in DOC_EXTS:
+                    continue
+                path = Path(dirpath) / name
+                fp: frozenset[int] = frozenset()
+                if ext in TEXT_EXTS:
+                    try:
+                        if path.stat().st_size <= max_bytes:
+                            fp = fingerprints(path.read_text(encoding="utf-8", errors="ignore"))
+                    except OSError:
+                        pass
+                files.append(InvFile(str(path), name, fp))
+                if len(files) >= max_files:
+                    return Inventory(files)
+    return Inventory(files)
+
+
+def default_roots() -> list[Path]:
+    home = Path.home()
+    roots = [home / d for d in ("Desktop", "Documents", "Downloads", "OneDrive")]
+    if sys.platform == "win32":
+        import psutil
+        for part in psutil.disk_partitions(all=False):
+            mount = Path(part.mountpoint)
+            if mount.drive.upper() != "C:":
+                roots.append(mount)
+    return roots
+```
+
+`agent/tide_agent/exam_folder.py`:
+```python
+import hashlib
+import io
+import zipfile
+from pathlib import Path
+
+from .inventory import TEXT_EXTS
+
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha1(data).hexdigest()
+
+
+class ExamFolder:
+    """C:\\Exam\\<roll>. Questions arrive here; snapshots and the submission come from here."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self._sent: dict[str, str] = {}
+
+    def write_files(self, files: list[tuple[str, bytes]]) -> int:
+        self.root.mkdir(parents=True, exist_ok=True)
+        written = 0
+        for name, data in files:
+            target = self.root / Path(name).name
+            self._sent.setdefault(target.name, _sha(data))
+            if target.exists():
+                continue
+            target.write_bytes(data)
+            written += 1
+        return written
+
+    def _text_files(self) -> list[Path]:
+        if not self.root.exists():
+            return []
+        return [p for p in sorted(self.root.rglob("*"))
+                if p.is_file() and p.suffix.lower() in TEXT_EXTS and p.stat().st_size <= 1_000_000]
+
+    def texts(self) -> dict[str, str]:
+        return {p.relative_to(self.root).as_posix(): p.read_text(encoding="utf-8", errors="ignore")
+                for p in self._text_files()}
+
+    def changed_files(self) -> list[dict]:
+        out = []
+        for p in self._text_files():
+            rel = p.relative_to(self.root).as_posix()
+            data = p.read_bytes()
+            sha = _sha(data)
+            if self._sent.get(rel) != sha:
+                self._sent[rel] = sha
+                out.append({"path": rel, "text": data.decode("utf-8", errors="ignore"), "sha": sha})
+        return out
+
+    def file_count(self) -> int:
+        return sum(1 for p in self.root.rglob("*") if p.is_file()) if self.root.exists() else 0
+
+    def zip_bytes(self) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            if self.root.exists():
+                for p in sorted(self.root.rglob("*")):
+                    if p.is_file():
+                        z.write(p, p.relative_to(self.root).as_posix())
+        return buf.getvalue()
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pytest agent/tests -v`
+Expected: all pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): pre-exam file inventory and exam folder"
+```
+
+### Task 16: Watchers and pre-flight
+
+**Files:**
+- Create: `agent/tide_agent/watchers.py`, `agent/tide_agent/preflight.py`, `agent/tests/fakes.py`
+- Test: `agent/tests/test_watchers.py`
+
+**Interfaces:**
+- Consumes: `Platform` types, `Signal`, `Kind`, `BROWSERS`, `AI_EXTENSIONS`, `DENY_PROCESSES`, `CLIPBOARD_MIN`, `Inventory`
+- Produces:
+  - `WindowWatcher(p)` (`.poll() -> list[Signal]`, `.current_process: str`); re-reads the browser host only when the window or title changes
+  - `ProcessWatcher(p)`, `NetworkWatcher(p, probe_every_s=5.0, clock=time.monotonic)`, `LanWatcher(p, server_ip)`, `UsbWatcher(p)`, `ClipboardWatcher(p, exam_texts: Callable[[], dict], inventory: Callable[[], Inventory | None])`, `ExtensionWatcher(ext_dir)` with `.set_baseline(names)`
+  - `scan_extensions(ext_dir) -> list[str]`
+  - `PreflightResult(internet, extensions, denied_closed, inventory)`, `run_preflight(p, ext_dir, roots, exam_root, inventory=None) -> PreflightResult`, `preflight_message(r) -> dict`, `preflight_checks(r) -> list[dict]` (`{id, label, detail, state: ok|warn|fail}`), `running_checks() -> list[dict]`
+  - `tests/fakes.py: FakePlatform` with plain attributes: `window, hosts, procs, killed, ads, online, peers, drives, clip_seq, clip, closed_tabs, shot`
+
+- [ ] **Step 1: Write the fake and the failing tests**
+
+`agent/tests/fakes.py`:
+```python
+from tide_agent.platform import AdapterInfo, ProcInfo, WindowInfo
+
+
+class FakePlatform:
+    def __init__(self):
+        self.window: WindowInfo | None = WindowInfo(1, 10, "Code.exe", "C:/code.exe", "main.c - 22BCS107 - Visual Studio Code")
+        self.hosts: dict[int, str | None] = {}
+        self.host_reads = 0
+        self.procs: dict[int, ProcInfo] = {10: ProcInfo(10, "Code.exe")}
+        self.killed: list[int] = []
+        self.ads = {"Ethernet": AdapterInfo("Ethernet", True), "Wi-Fi": AdapterInfo("Wi-Fi", False, wifi=True)}
+        self.online = False
+        self.peers = []
+        self.drives: set[str] = set()
+        self.clip_seq = 1
+        self.clip: str | None = None
+        self.closed_tabs: list[int] = []
+        self.shot: bytes | None = b"\xff\xd8jpeg"
+
+    def foreground(self): return self.window
+    def browser_host(self, hwnd, process):
+        self.host_reads += 1
+        return self.hosts.get(hwnd)
+    def processes(self): return dict(self.procs)
+    def kill(self, pid):
+        self.killed.append(pid)
+        self.procs.pop(pid, None)
+    def adapters(self): return dict(self.ads)
+    def internet(self): return self.online
+    def lan_peers(self, server_ip): return [p for p in self.peers if p.ip != server_ip]
+    def removable_drives(self): return set(self.drives)
+    def clipboard_seq(self): return self.clip_seq
+    def clipboard_text(self): return self.clip
+    def close_tab(self, hwnd): self.closed_tabs.append(hwnd)
+    def screenshot(self): return self.shot
+```
+
+`agent/tests/test_watchers.py`:
+```python
+from tide_agent.inventory import build_inventory
+from tide_agent.platform import AdapterInfo, Peer, ProcInfo, WindowInfo
+from tide_agent.preflight import preflight_checks, preflight_message, run_preflight
+from tide_agent.watchers import (ClipboardWatcher, ExtensionWatcher, LanWatcher, NetworkWatcher,
+                                 ProcessWatcher, UsbWatcher, WindowWatcher, scan_extensions)
+from fakes import FakePlatform
+
+
+def test_window_watcher_emits_on_change_and_reads_host_once_per_title():
+    p = FakePlatform()
+    w = WindowWatcher(p)
+    first = w.poll()
+    assert first[0].data["process"] == "Code.exe" and first[0].data["host"] is None
+    assert w.poll() == []
+    p.window = WindowInfo(2, 20, "chrome.exe", "", "ChatGPT")
+    p.hosts[2] = "chatgpt.com"
+    got = w.poll()
+    assert got[0].data["host"] == "chatgpt.com" and w.current_process == "chrome.exe"
+    w.poll(); w.poll()
+    assert p.host_reads == 1
+
+
+def test_process_watcher_reports_new_processes():
+    p = FakePlatform()
+    w = ProcessWatcher(p)
+    assert [s.data["process"] for s in w.poll()] == ["Code.exe"]
+    p.procs[30] = ProcInfo(30, "WhatsApp.exe")
+    assert [s.data["pid"] for s in w.poll()] == [30]
+    assert w.poll() == []
+
+
+def test_network_watcher_reports_internet_changes_with_via():
+    p = FakePlatform()
+    t = [0.0]
+    w = NetworkWatcher(p, probe_every_s=5.0, clock=lambda: t[0])
+    assert w.poll()[0].data["internet"] is False
+    t[0] = 1.0
+    p.ads["Wi-Fi"] = AdapterInfo("Wi-Fi", True, wifi=True, ssid="Redmi Note")
+    p.online = True
+    got = w.poll()                      # a new adapter forces an early probe
+    assert got[0].data == {"internet": True, "via": "Wi-Fi “Redmi Note”", "adapters": ["Ethernet", "Wi-Fi"]}
+    t[0] = 2.0
+    assert w.poll() == []               # no change, probe not due
+
+
+def test_lan_usb_clipboard():
+    p = FakePlatform()
+    lan = LanWatcher(p, "10.10.0.1")
+    p.peers = [Peer("10.10.0.1", 8765), Peer("10.10.0.30", 445, "System")]
+    assert [s.data["ip"] for s in lan.poll()] == ["10.10.0.30"]
+    assert lan.poll() == []
+
+    usb = UsbWatcher(p)
+    assert usb.poll() == []
+    p.drives = {"E:\\"}
+    assert usb.poll()[0].data == {"drive": "E:\\"}
+
+    exam = {"main.c": "x" * 300}
+    clip = ClipboardWatcher(p, lambda: exam, lambda: None)
+    assert clip.poll() == []            # first read is the baseline
+    p.clip_seq, p.clip = 2, "y" * 250
+    assert clip.poll()[0].data["length"] == 250
+    p.clip_seq, p.clip = 3, "x" * 250   # copied from the exam's own file
+    assert clip.poll() == []
+
+
+def test_extensions(tmp_path):
+    ext = tmp_path / "extensions"
+    (ext / "github.copilot-1.200.0").mkdir(parents=True)
+    (ext / "ms-vscode.cpptools-1.20").mkdir()
+    assert scan_extensions(ext) == ["GitHub Copilot"]
+    w = ExtensionWatcher(ext)
+    w.set_baseline(["GitHub Copilot"])
+    assert w.poll() == []
+    (ext / "codeium.codeium-1.8").mkdir()
+    assert w.poll()[0].data["names"] == ["Codeium"]
+
+
+def test_preflight_kills_denied_and_reports(tmp_path):
+    p = FakePlatform()
+    p.procs[40] = ProcInfo(40, "discord.exe")
+    p.online = True
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "a.c").write_text("int main() { return 0; }")
+    r = run_preflight(p, tmp_path / "noext", [tmp_path], tmp_path / "Exam")
+    assert p.killed == [40] and r.denied_closed == ["Discord"] and r.internet is True
+    assert preflight_message(r)["inventory_count"] == 1
+    states = {c["id"]: c["state"] for c in preflight_checks(r)}
+    assert states == {"internet": "fail", "apps": "ok", "extensions": "ok", "files": "ok"}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pytest agent/tests/test_watchers.py -v`
+Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.watchers'`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/watchers.py`:
+```python
+"""Each watcher turns OS state into Signals. poll() is sync and cheap; the engine runs it in a thread."""
+import time
+from pathlib import Path
+from typing import Callable
+
+from tide_common.policy import AI_EXTENSIONS, BROWSERS, CLIPBOARD_MIN
+from tide_common.protocol import Kind, Signal
+
+from .inventory import Inventory
+from .platform import AdapterInfo, Platform
+
+
+class WindowWatcher:
+    def __init__(self, p: Platform) -> None:
+        self.p = p
+        self._last: tuple | None = None
+        self._host_key: tuple | None = None
+        self._host: str | None = None
+        self.current_process = ""
+
+    def poll(self) -> list[Signal]:
+        w = self.p.foreground()
+        if w is None:
+            return []
+        self.current_process = w.process
+        host = None
+        if w.process.lower() in BROWSERS:
+            if self._host_key != (w.hwnd, w.title):
+                self._host_key = (w.hwnd, w.title)
+                self._host = self.p.browser_host(w.hwnd, w.process)
+            host = self._host
+        key = (w.hwnd, w.process.lower(), w.title, host)
+        if key == self._last:
+            return []
+        self._last = key
+        return [Signal(kind=Kind.WINDOW, data={
+            "hwnd": w.hwnd, "pid": w.pid, "process": w.process, "exe": w.exe, "title": w.title,
+            "description": w.description, "original_name": w.original_name, "host": host})]
+
+
+class ProcessWatcher:
+    def __init__(self, p: Platform) -> None:
+        self.p = p
+        self._seen: set[int] = set()
+
+    def poll(self) -> list[Signal]:
+        procs = self.p.processes()
+        new = [pi for pid, pi in procs.items() if pid not in self._seen]
+        self._seen = set(procs)
+        return [Signal(kind=Kind.PROCESS, data={"pid": pi.pid, "process": pi.name, "exe": pi.exe,
+                                                "description": pi.description,
+                                                "original_name": pi.original_name}) for pi in new]
+
+
+def _via(ads: dict[str, AdapterInfo], new_up: list[str]) -> str:
+    candidates = [ads[n] for n in new_up] + [a for a in ads.values() if a.up and a.wifi]
+    for a in candidates:
+        if a.wifi and a.ssid:
+            return f"Wi-Fi “{a.ssid}”"
+        return a.name
+    return "network"
+
+
+class NetworkWatcher:
+    def __init__(self, p: Platform, probe_every_s: float = 5.0,
+                 clock: Callable[[], float] = time.monotonic) -> None:
+        self.p, self.probe_every_s, self.clock = p, probe_every_s, clock
+        self._up: set[str] | None = None
+        self._internet: bool | None = None
+        self._last_probe = float("-inf")
+
+    def poll(self) -> list[Signal]:
+        now = self.clock()
+        ads = self.p.adapters()
+        up = {n for n, a in ads.items() if a.up}
+        new_up = sorted(up - self._up) if self._up is not None else []
+        self._up = up
+        if not new_up and now - self._last_probe < self.probe_every_s:
+            return []
+        self._last_probe = now
+        internet = self.p.internet()
+        if internet == self._internet:
+            return []
+        self._internet = internet
+        return [Signal(kind=Kind.NETWORK, data={"internet": internet, "via": _via(ads, new_up),
+                                                "adapters": sorted(up)})]
+
+
+class LanWatcher:
+    def __init__(self, p: Platform, server_ip: str) -> None:
+        self.p, self.server_ip = p, server_ip
+        self._seen: set[str] = set()
+
+    def poll(self) -> list[Signal]:
+        out = []
+        for peer in self.p.lan_peers(self.server_ip):
+            if peer.ip not in self._seen:
+                self._seen.add(peer.ip)
+                out.append(Signal(kind=Kind.LAN_PEER, data={"ip": peer.ip, "port": peer.port,
+                                                            "process": peer.process}))
+        return out
+
+
+class UsbWatcher:
+    def __init__(self, p: Platform) -> None:
+        self.p = p
+        self._seen: set[str] | None = None
+
+    def poll(self) -> list[Signal]:
+        drives = self.p.removable_drives()
+        new = sorted(drives - self._seen) if self._seen is not None else []
+        self._seen = drives
+        return [Signal(kind=Kind.USB, data={"drive": d}) for d in new]
+
+
+class ClipboardWatcher:
+    def __init__(self, p: Platform, exam_texts: Callable[[], dict[str, str]],
+                 inventory: Callable[[], Inventory | None]) -> None:
+        self.p, self.exam_texts, self.inventory = p, exam_texts, inventory
+        self._seq: int | None = None
+
+    def poll(self) -> list[Signal]:
+        seq = self.p.clipboard_seq()
+        if seq == self._seq:
+            return []
+        first = self._seq is None
+        self._seq = seq
+        if first:
+            return []
+        text = self.p.clipboard_text() or ""
+        if len(text) < CLIPBOARD_MIN:
+            return []
+        snippet = text.strip()
+        if any(snippet in t for t in self.exam_texts().values()):
+            return []
+        data = {"length": len(text), "preview": text[:120]}
+        inv = self.inventory()
+        match = inv.best_match(text) if inv else None
+        if match:
+            data["match_path"], data["match_pct"] = match
+        return [Signal(kind=Kind.CLIPBOARD, data=data)]
+
+
+def scan_extensions(ext_dir: Path) -> list[str]:
+    if not ext_dir.is_dir():
+        return []
+    found = set()
+    for child in ext_dir.iterdir():
+        low = child.name.lower()
+        for prefix, name in AI_EXTENSIONS.items():
+            if child.is_dir() and low.startswith(prefix):
+                found.add(name)
+    return sorted(found)
+
+
+class ExtensionWatcher:
+    def __init__(self, ext_dir: Path) -> None:
+        self.ext_dir = ext_dir
+        self._known: set[str] = set()
+
+    def set_baseline(self, names: list[str]) -> None:
+        self._known = set(names)
+
+    def poll(self) -> list[Signal]:
+        new = [n for n in scan_extensions(self.ext_dir) if n not in self._known]
+        self._known.update(new)
+        return [Signal(kind=Kind.EXTENSION, data={"names": new})] if new else []
+```
+
+`agent/tide_agent/preflight.py`:
+```python
+from dataclasses import dataclass
+from pathlib import Path
+
+from tide_common.policy import DENY_PROCESSES
+from tide_common.protocol import msg
+
+from .inventory import Inventory, build_inventory
+from .platform import Platform
+from .watchers import scan_extensions
+
+
+@dataclass
+class PreflightResult:
+    internet: bool
+    extensions: list[str]
+    denied_closed: list[str]
+    inventory: Inventory
+
+
+def run_preflight(p: Platform, ext_dir: Path, roots: list[Path], exam_root: Path,
+                  inventory: Inventory | None = None) -> PreflightResult:
+    closed = []
+    for pid, pi in p.processes().items():
+        name = DENY_PROCESSES.get(pi.name.lower()) or DENY_PROCESSES.get(pi.original_name.lower())
+        if name:
+            p.kill(pid)
+            closed.append(name)
+    return PreflightResult(internet=p.internet(), extensions=scan_extensions(ext_dir),
+                           denied_closed=sorted(set(closed)),
+                           inventory=inventory or build_inventory(roots, exclude=exam_root))
+
+
+def preflight_message(r: PreflightResult) -> dict:
+    return msg("preflight", internet=r.internet, extensions=r.extensions, denied_closed=r.denied_closed,
+               inventory_count=len(r.inventory.files))
+
+
+def running_checks() -> list[dict]:
+    return [{"id": i, "label": label, "detail": "", "state": "run"} for i, label in
+            (("internet", "Offline"), ("apps", "Apps"), ("extensions", "AI extensions"), ("files", "Files"))]
+
+
+def preflight_checks(r: PreflightResult) -> list[dict]:
+    return [
+        {"id": "internet", "label": "Internet on" if r.internet else "Offline",
+         "detail": "Disconnect Wi-Fi / hotspot to continue" if r.internet else "No internet on any adapter",
+         "state": "fail" if r.internet else "ok"},
+        {"id": "apps", "label": "Apps",
+         "detail": f"Closed {', '.join(r.denied_closed)}" if r.denied_closed else "Nothing blocked running",
+         "state": "ok"},
+        {"id": "extensions", "label": f"{', '.join(r.extensions)} found" if r.extensions else "AI extensions",
+         "detail": "Teacher has been told" if r.extensions else "None installed",
+         "state": "warn" if r.extensions else "ok"},
+        {"id": "files", "label": "Files indexed", "detail": f"{len(r.inventory.files)} files", "state": "ok"},
+    ]
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd agent && pytest tests -v && cd ..` (tests import `fakes` from the tests folder, so run from `agent/`)
+Expected: all pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): watchers and pre-flight"
+```
+
+### Task 17: Enforcer and engine
+
+**Files:**
+- Create: `agent/tide_agent/ui/__init__.py`, `agent/tide_agent/ui/port.py`, `agent/tide_agent/enforcer.py`, `agent/tide_agent/engine.py`
+- Test: `agent/tests/test_engine.py`
+
+**Interfaces:**
+- Consumes: `evaluate`, `Policy`, watchers, `ExamFolder`, `Inventory`, `ServerClock`
+- Produces:
+  - `UiPort` protocol: `show_join(server: str | None, error: str | None = None)`, `show_preflight(checks)`, `start(seat_no, set_name, ends_at_local, folder)`, `set_ends_at(ends_at_local)`, `notice(text)`, `block(title, persistent=False)`, `unblock()`, `done(n_files, at)`, `error(text)`, `quit()`
+  - `Enforcer(p, ui, sleep=time.sleep)` with `act(action, target, title, persistent=False) -> str` returning `none|killed|closed|killed_browser|shown`
+  - `Engine(p, ui, send, folder, submitter, ext_dir, server_ip, clock=None)` with `on_signal(sig)`, `on_server(m)`, `tick(n)`, `run()`, `submit(auto)`, `snapshot()`; attributes `policy, inventory, live, done, seat_no, roll`
+
+- [ ] **Step 1: Write the failing tests**
+
+`agent/tests/test_engine.py`:
+```python
+import base64
+
+from tide_common.policy import PRESETS, Policy
+from tide_common.protocol import Kind, Signal
+from tide_agent.engine import Engine
+from tide_agent.enforcer import Enforcer
+from tide_agent.exam_folder import ExamFolder
+from tide_agent.inventory import build_inventory
+from tide_agent.platform import WindowInfo
+from fakes import FakePlatform
+
+
+class RecUI:
+    def __init__(self): self.calls = []
+    def __getattr__(self, name):
+        return lambda *a, **k: self.calls.append((name, a))
+
+
+def make(tmp_path, p=None):
+    p = p or FakePlatform()
+    ui, sent, submitted = RecUI(), [], []
+
+    async def send(m):
+        sent.append(m)
+        return True
+
+    async def submitter(data, auto):
+        submitted.append((data, auto))
+
+    e = Engine(p, ui, send, ExamFolder(tmp_path / "Exam" / "22BCS107"), submitter,
+               tmp_path / "ext", server_ip="10.10.0.1")
+    e.policy = Policy.from_apps(PRESETS["networking"])
+    e.roll = "22BCS107"
+    return e, p, ui, sent, submitted
+
+
+def test_enforcer_close_tab_then_kill_if_still_there():
+    p, ui = FakePlatform(), RecUI()
+    p.hosts[5] = "chatgpt.com"
+    r = Enforcer(p, ui, sleep=lambda s: None).act("close_tab", {"hwnd": 5, "pid": 9, "process": "chrome.exe",
+                                                               "host": "chatgpt.com"}, "ChatGPT — closed")
+    assert r == "killed_browser" and p.closed_tabs == [5] and p.killed == [9]
+    assert ui.calls[-1] == ("block", ("ChatGPT — closed", False))
+
+
+async def test_blocked_site_screenshot_before_close_and_flag(tmp_path):
+    e, p, ui, sent, _ = make(tmp_path)
+    order = []
+    p.screenshot = lambda: order.append("shot") or b"\xff\xd8"
+    p.close_tab = lambda hwnd: order.append("close")
+    await e.on_signal(Signal(kind=Kind.WINDOW, data={"hwnd": 3, "pid": 4, "process": "chrome.exe",
+                                                     "title": "ChatGPT", "host": "chatgpt.com"}))
+    assert order == ["shot", "close"]
+    flag, evidence = sent
+    assert flag["t"] == "flag" and flag["title"] == "ChatGPT — closed" and flag["result"] == "closed"
+    assert evidence == {"t": "evidence", "ref": flag["ref"], "jpeg_b64": base64.b64encode(b"\xff\xd8").decode()}
+
+
+async def test_unknown_window_goes_to_server_allowed_is_event(tmp_path):
+    e, *_, sent, _ = make(tmp_path)
+    await e.on_signal(Signal(kind=Kind.WINDOW, data={"process": "chrome.exe", "title": "Poe", "host": "poe.com"}))
+    await e.on_signal(Signal(kind=Kind.WINDOW, data={"process": "Code.exe", "title": "main.c - 22BCS107"}))
+    await e.on_signal(Signal(kind=Kind.PROCESS, data={"pid": 1, "process": "svchost.exe"}))
+    assert [m["t"] for m in sent] == ["signal", "event"]
+
+
+async def test_internet_overlay_is_persistent_until_offline_even_without_server(tmp_path):
+    """Review focus #4: enforcement is local; send() failing doesn't matter."""
+    e, p, ui, sent, _ = make(tmp_path)
+
+    async def offline_send(m):
+        return False
+    e.send = offline_send
+    await e.on_signal(Signal(kind=Kind.NETWORK, data={"internet": True, "via": "Wi-Fi “Redmi”"}))
+    assert ("block", ("Internet via Wi-Fi “Redmi”", True)) in ui.calls
+    await e.on_signal(Signal(kind=Kind.NETWORK, data={"internet": False}))
+    assert ui.calls[-1][0] == "unblock"
+
+
+async def test_file_open_and_old_code(tmp_path):
+    old = tmp_path / "D" / "old"
+    old.mkdir(parents=True)
+    code = "\n".join(f"int f{i}(int x) {{ return x * {i} + {i}; }}" for i in range(20))
+    (old / "main.c").write_text(code)
+    (old / "dsa_lab5.cpp").write_text(code)
+    e, p, ui, sent, _ = make(tmp_path)
+    e.inventory = build_inventory([tmp_path / "D"])
+    # Review focus #3: the exam's own main.c (title contains the roll) is not "old"
+    await e.on_signal(Signal(kind=Kind.WINDOW, data={"process": "Code.exe", "title": "main.c - 22BCS107 - Visual Studio Code"}))
+    await e.on_signal(Signal(kind=Kind.WINDOW, data={"process": "Code.exe", "title": "dsa_lab5.cpp - old - Visual Studio Code"}))
+    titles = [m["title"] for m in sent if m["t"] == "flag"]
+    assert titles == ["Pre-exam file opened"]
+    e.live = True
+    e.folder.write_files([("main.c", b"int main(){}")])
+    (e.folder.root / "main.c").write_text(code.replace("x", "y"))
+    await e.snapshot()
+    kinds = [m.get("kind") or m["t"] for m in sent[-3:]]
+    assert "snapshot" in kinds and "old_code" in kinds
+
+
+async def test_server_messages(tmp_path):
+    e, p, ui, sent, submitted = make(tmp_path)
+    await e.on_server({"t": "welcome", "_offset": 10.0, "seat_no": 7, "roll": "22BCS107", "set": None,
+                       "policy": Policy.from_apps(["VS Code"]).to_dict(), "exam_state": "lobby", "ends_at": None})
+    assert e.policy.apps == ("VS Code",)
+    await e.on_server({"t": "start", "set": "A", "ends_at": 1010.0,
+                       "files": [{"name": "q.txt", "b64": base64.b64encode(b"Q").decode()}]})
+    assert (e.folder.root / "q.txt").read_bytes() == b"Q" and e.live
+    assert ui.calls[-1][0] == "start" and ui.calls[-1][1][2] == 1000.0
+    p.hosts[8] = "chatgpt.com"
+    await e.on_server({"t": "act", "action": "kill", "target": {"pid": 77}, "reason": "NoteGPT — AI assistant", "flag_id": 5})
+    assert p.killed == [77] and sent[-1]["t"] == "evidence" and sent[-1]["flag_id"] == 5
+    await e.on_server({"t": "end", "reason": "time"})
+    assert submitted and submitted[0][1] is True and e.done
+    assert ui.calls[-1][0] == "done"
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd agent && pytest tests/test_engine.py -v`
+Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.engine'`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/ui/__init__.py`: empty.
+
+`agent/tide_agent/ui/port.py`:
+```python
+from typing import Protocol
+
+
+class UiPort(Protocol):
+    """What the engine asks the screen to do. Implementations must be callable from any thread."""
+    def show_join(self, server: str | None, error: str | None = None) -> None: ...
+    def show_preflight(self, checks: list[dict]) -> None: ...
+    def start(self, seat_no: int, set_name: str, ends_at_local: float, folder: str) -> None: ...
+    def set_ends_at(self, ends_at_local: float) -> None: ...
+    def notice(self, text: str) -> None: ...
+    def block(self, title: str, persistent: bool = False) -> None: ...
+    def unblock(self) -> None: ...
+    def done(self, n_files: int, at: str) -> None: ...
+    def error(self, text: str) -> None: ...
+    def quit(self) -> None: ...
+```
+
+`agent/tide_agent/enforcer.py`:
+```python
+import time
+from typing import Callable
+
+from .platform import Platform
+from .ui.port import UiPort
+
+
+class Enforcer:
+    def __init__(self, p: Platform, ui: UiPort, sleep: Callable[[float], None] = time.sleep) -> None:
+        self.p, self.ui, self.sleep = p, ui, sleep
+
+    def act(self, action: str, target: dict, title: str, persistent: bool = False) -> str:
+        result = "none"
+        if action == "kill" and target.get("pid"):
+            self.p.kill(target["pid"])
+            result = "killed"
+        elif action == "close_tab" and target.get("hwnd"):
+            self.p.close_tab(target["hwnd"])
+            self.sleep(0.3)
+            still = self.p.browser_host(target["hwnd"], target.get("process") or "")
+            if still and still == target.get("host") and target.get("pid"):
+                self.p.kill(target["pid"])
+                result = "killed_browser"
+            else:
+                result = "closed"
+        elif action == "overlay":
+            result = "shown"
+        if action != "none":
+            self.ui.block(title, persistent)
+        return result
+```
+
+`agent/tide_agent/engine.py`:
+```python
+"""The agent's brain: watchers -> rules -> act locally / tell the server. Server messages come back here."""
+import asyncio
+import base64
+import time
+import uuid
+from pathlib import Path
+from typing import Awaitable, Callable
+
+from tide_common.policy import Policy
+from tide_common.protocol import SEVERITY_RANK, Kind, Signal, msg
+from tide_common.rules import RuleHit, evaluate
+
+from .clock import ServerClock
+from .enforcer import Enforcer
+from .exam_folder import ExamFolder
+from .inventory import Inventory
+from .platform import Platform
+from .ui.port import UiPort
+from .watchers import (ClipboardWatcher, ExtensionWatcher, LanWatcher, NetworkWatcher, ProcessWatcher,
+                       UsbWatcher, WindowWatcher)
+
+TICK_S = 0.5
+
+
+class Engine:
+    def __init__(self, p: Platform, ui: UiPort, send: Callable[[dict], Awaitable[bool]], folder: ExamFolder,
+                 submitter: Callable[[bytes, bool], Awaitable[None]], ext_dir: Path, server_ip: str,
+                 clock: ServerClock | None = None) -> None:
+        self.p, self.ui, self.send, self.folder, self.submitter = p, ui, send, folder, submitter
+        self.clock = clock or ServerClock()
+        self.policy = Policy.from_apps([])
+        self.enforcer = Enforcer(p, ui)
+        self.inventory: Inventory | None = None
+        self.seat_no, self.roll, self.set_name = 0, "", None
+        self.live = False
+        self.done = False
+        self._reported: set[str] = set()
+        self.window = WindowWatcher(p)
+        self.procs = ProcessWatcher(p)
+        self.net = NetworkWatcher(p)
+        self.lan = LanWatcher(p, server_ip)
+        self.usb = UsbWatcher(p)
+        self.clip = ClipboardWatcher(p, folder.texts, lambda: self.inventory)
+        self.ext = ExtensionWatcher(ext_dir)
+
+    # ---- signals -------------------------------------------------------------------------------
+    async def on_signal(self, sig: Signal) -> None:
+        if self.done:
+            return
+        r = evaluate(sig, self.policy)
+        if r.status == "hit":
+            await self._hit(r.hit, sig)
+            return
+        if sig.kind == Kind.NETWORK and not sig.data.get("internet"):
+            self.ui.unblock()
+        if r.status == "unknown":
+            if sig.kind == Kind.WINDOW:
+                await self.send(msg("signal", kind=sig.kind, data=sig.data, ts=self.clock.now()))
+            return
+        if sig.kind in (Kind.WINDOW, Kind.NETWORK):
+            await self.send(msg("event", kind=sig.kind, data=sig.data, ts=self.clock.now()))
+        if sig.kind == Kind.WINDOW:
+            await self._check_title(sig)
+
+    async def _hit(self, hit: RuleHit, sig: Signal) -> None:
+        shot = await asyncio.to_thread(self.p.screenshot) if SEVERITY_RANK[hit.severity] >= 1 else None
+        target = {k: sig.data.get(k) for k in ("pid", "hwnd", "process", "host")}
+        result = await asyncio.to_thread(self.enforcer.act, hit.action, target, hit.title, hit.kind == "internet")
+        ref = uuid.uuid4().hex
+        await self.send(msg("flag", ref=ref, kind=hit.kind, severity=hit.severity, title=hit.title,
+                            data=sig.data, ts=self.clock.now(), action=hit.action, result=result))
+        if shot:
+            await self.send(msg("evidence", ref=ref, jpeg_b64=base64.b64encode(shot).decode()))
+
+    async def _check_title(self, sig: Signal) -> None:
+        title = sig.data.get("title") or ""
+        if not self.inventory or (self.roll and self.roll.lower() in title.lower()):
+            return
+        path = self.inventory.match_title(title)
+        if path and f"open:{path}" not in self._reported:
+            self._reported.add(f"open:{path}")
+            await self.on_signal(Signal(kind=Kind.FILE_OPEN, data={"path": path, "title": title}))
+
+    # ---- server --------------------------------------------------------------------------------
+    async def on_server(self, m: dict) -> None:
+        t = m.get("t")
+        if t == "welcome":
+            self.clock.offset = m.get("_offset", 0.0)
+            self.policy = Policy.from_dict(m.get("policy") or {})
+            self.seat_no, self.roll = m.get("seat_no", 0), m.get("roll", "")
+            if m.get("exam_state") == "live" and m.get("ends_at"):
+                self.ui.set_ends_at(self.clock.to_local(m["ends_at"]))
+        elif t == "start":
+            files = [(f["name"], base64.b64decode(f["b64"])) for f in m.get("files") or []]
+            await asyncio.to_thread(self.folder.write_files, files)
+            first = not self.live
+            self.set_name, self.live = m.get("set"), True
+            if first:
+                self.ui.start(self.seat_no, self.set_name, self.clock.to_local(m["ends_at"]), str(self.folder.root))
+            else:
+                self.ui.set_ends_at(self.clock.to_local(m["ends_at"]))
+        elif t == "time":
+            self.ui.set_ends_at(self.clock.to_local(m["ends_at"]))
+        elif t == "notice":
+            self.ui.notice(m.get("text", ""))
+        elif t == "act":
+            shot = await asyncio.to_thread(self.p.screenshot)
+            await asyncio.to_thread(self.enforcer.act, m["action"], m.get("target") or {}, m.get("reason", ""))
+            if shot:
+                await self.send(msg("evidence", flag_id=m.get("flag_id"), jpeg_b64=base64.b64encode(shot).decode()))
+        elif t == "end":
+            await self.submit(auto=True)
+        elif t == "auth_failed":
+            self.ui.error("This seat was joined from another PC. Ask the invigilator.")
+
+    # ---- loop ----------------------------------------------------------------------------------
+    def _slow_polls(self) -> list[Signal]:
+        return self.procs.poll() + self.net.poll() + self.lan.poll() + self.usb.poll()
+
+    async def tick(self, n: int) -> None:
+        if self.done:
+            return
+        sigs = await asyncio.to_thread(self.window.poll)
+        if n % 2 == 0:
+            sigs += await asyncio.to_thread(self.clip.poll)
+        if n % 4 == 0:
+            sigs += await asyncio.to_thread(self._slow_polls)
+        if n % 120 == 0:
+            sigs += await asyncio.to_thread(self.ext.poll)
+        for s in sigs:
+            await self.on_signal(s)
+        if n % 6 == 0:
+            await self.send(msg("heartbeat", fg=self.window.current_process))
+        if self.live and n % 60 == 59:
+            await self.snapshot()
+
+    async def snapshot(self) -> None:
+        files = await asyncio.to_thread(self.folder.changed_files)
+        if not files:
+            return
+        await self.send(msg("snapshot", ts=self.clock.now(), files=files))
+        if self.inventory is None:
+            return
+        for f in files:
+            match = self.inventory.best_match(f["text"])
+            if match and f"old:{match[0]}" not in self._reported:
+                self._reported.add(f"old:{match[0]}")
+                await self.on_signal(Signal(kind=Kind.OLD_CODE, data={"exam_path": f["path"],
+                                                                      "source_path": match[0], "pct": match[1]}))
+
+    async def run(self) -> None:
+        n = 0
+        while not self.done:
+            try:
+                await self.tick(n)
+            except Exception as e:     # a flaky OS call must never stop the watchers
+                print(f"[engine] {e!r}")
+            n += 1
+            await asyncio.sleep(TICK_S)
+
+    async def submit(self, auto: bool) -> None:
+        if self.done:
+            return
+        self.done = True
+        await self.snapshot()
+        data = await asyncio.to_thread(self.folder.zip_bytes)
+        for attempt in range(3):
+            try:
+                await self.submitter(data, auto)
+                self.ui.done(self.folder.file_count(), time.strftime("%H:%M"))
+                return
+            except Exception as e:
+                self.ui.error(f"Submit failed, retrying… ({e})")
+                await asyncio.sleep(2)
+        self.done = False
+        self.ui.error("Submit failed. Tell the invigilator — your files are safe in the exam folder.")
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd agent && pytest tests -v`
+Expected: all pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): engine routes rules, enforces locally, handles server messages"
+```
+
