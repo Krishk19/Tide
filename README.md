@@ -77,9 +77,12 @@ React + Vite + TypeScript · Jev via OpenRouter Decisions API.
 
 ## Status
 
-The design, the UI mock and the implementation plan are complete. The plan's code was verified in a scratch
-build: 25 common + 48 server + 29 agent tests pass, including a fake student running end to end
-against the real server with live Jev. Implementation in this repo follows `docs/plans/`.
+Built and verified in this repo, following `docs/plans/2026-09-28-tide-demo-build.md` end to end:
+73 common+server tests, 29 agent tests (1 Windows-only test skipped off Windows), and 6 console
+tests all pass, the console type-checks and builds, and a single-device rehearsal (fake student PC
+against the real server with live Jev) caught every scripted cheat correctly. Remaining before a
+real two-laptop demo: Task 19's manual verification on real Windows hardware, and the full
+`docs/SETUP_TWO_PCS.md` rehearsal.
 
 ## License
 
