@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tide — UI Mock</title>
+<title>Tide — UI Mock · Test Integrity in Developer Environments</title>
 <link rel="icon" href="data:," />
 <!--
   Tide UI reference. Open in a browser. No dependencies.
@@ -384,7 +384,7 @@
     </div>
     <div class="apps" id="apps"></div>
     <div class="blocked"><svg><use href="#i-shield"/></svg>
-      <div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, internet. <span style="opacity:.7">Unknown apps are checked by Jev.</span></div>
+      <div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, internet. <span style="opacity:.7">Browsers only for local files. Unknown apps are checked by Jev.</span></div>
     </div>
 
     <div class="setup-foot">
@@ -670,7 +670,7 @@
 const APPS = [
   ["VS Code","#0078D4","VS",1],["CodeBlocks","#C2410C","CB",1],["Terminal","#334155",">_",1],
   ["Explorer","#F5B400","E",1],["Wireshark","#1679A7","W",1],["VMware","#6D28D9","VM",1],
-  ["Notepad","#0EA5E9","N",1],["Chrome","#16A34A","C",0],["Edge","#0891B2","e",0]
+  ["Notepad","#0EA5E9","N",1]
 ];
 const NOW_APPS = ["VS Code","VS Code","VS Code","Wireshark","Terminal","CodeBlocks","VMware","Explorer"];
 const roll = n => "22BCS1" + String(n).padStart(2,"0");
