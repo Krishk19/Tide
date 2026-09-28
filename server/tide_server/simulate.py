@@ -75,7 +75,7 @@ def seed_room(db: Session, exam: Exam, real_seat_no: int = 7, n: int = 60) -> No
     db.commit()
 
 
-def bootstrap_demo(ctx: Ctx) -> int:
+def bootstrap_demo(ctx: Ctx, mock_room: bool = False) -> int:
     with ctx.db() as db:
         exam = current_exam(db)
         if exam is None or exam.state == "ended":
@@ -83,19 +83,34 @@ def bootstrap_demo(ctx: Ctx) -> int:
             for set_name in ("A", "B"):
                 for f in sorted((ASSETS / f"set_{set_name}").iterdir()):
                     add_file(db, exam.id, set_name, f.name, f.read_bytes())
-        if db.exec(select(Seat).where(Seat.exam_id == exam.id, Seat.simulated == True)).first() is None:  # noqa: E712
+        if mock_room and db.exec(select(Seat).where(Seat.exam_id == exam.id,
+                                                    Seat.simulated == True)).first() is None:  # noqa: E712
             seed_room(db, exam)
         return exam.id
 
 
 class SimRoom:
-    def __init__(self, ctx: Ctx, exam_id: int, rng: random.Random | None = None) -> None:
+    """Fills the current exam with 59 simulated students (the --mock room)."""
+
+    def __init__(self, ctx: Ctx, exam_id: int | None = None, rng: random.Random | None = None) -> None:
         self.ctx, self.exam_id = ctx, exam_id
         self.rng = rng or random.Random(7)
         self.boot_at = clock.now()
         self.fired: set[int] = set()
 
+    def _follow_current_exam(self) -> None:
+        with self.ctx.db() as db:
+            exam = current_exam(db)
+            if exam is None or exam.id == self.exam_id:
+                return
+            if db.exec(select(Seat).where(Seat.exam_id == exam.id, Seat.simulated == True)).first() is None:  # noqa: E712
+                seed_room(db, exam)
+            self.exam_id, self.boot_at, self.fired = exam.id, clock.now(), set()
+
     async def tick(self) -> None:
+        self._follow_current_exam()
+        if self.exam_id is None:
+            return
         t = clock.now()
         changed: list[int] = []
         with self.ctx.db() as db:

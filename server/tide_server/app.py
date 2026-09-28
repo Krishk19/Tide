@@ -14,6 +14,7 @@ from tide_server.db import make_engine
 from tide_server.discovery import start_discovery
 from tide_server.hub import Hub
 from tide_server.ingest import Ingest
+from tide_server.models import Exam
 from tide_server.simulate import SimRoom, bootstrap_demo, run_sim
 
 
@@ -33,12 +34,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         tasks: list[asyncio.Task] = []
         transport = None
-        if settings.demo:
-            ctx.extras["exam_id"] = bootstrap_demo(ctx)
+        if settings.demo:                  # developer shortcut: ready-made exam with sample questions
+            ctx.extras["exam_id"] = bootstrap_demo(ctx, mock_room=settings.mock_room)
+            with ctx.db() as db:
+                code = db.get(Exam, ctx.extras["exam_id"]).join_code
+            print(f"\n  ┌──────────────────────────────┐\n  │  JOIN CODE for students:     │"
+                  f"\n  │          {code}              │\n  └──────────────────────────────┘\n", flush=True)
         if settings.background_tasks:
             tasks.append(asyncio.create_task(monitor.run(ctx)))
-            if settings.demo:
-                tasks.append(asyncio.create_task(run_sim(SimRoom(ctx, ctx.extras["exam_id"]))))
+            if settings.mock_room:
+                tasks.append(asyncio.create_task(run_sim(SimRoom(ctx, ctx.extras.get("exam_id")))))
             try:
                 transport = await start_discovery(settings.host, settings.discovery_port, settings.port)
             except OSError as e:

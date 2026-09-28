@@ -25,8 +25,18 @@ async def test_discovery_replies():
     assert json.loads(data) == {"tide": 1, "port": 8765}
 
 
-def test_demo_boot_seeds_room(settings):
+def test_demo_without_mock_has_exam_but_no_fake_seats(settings):
     app = create_app(settings.model_copy(update={"demo": True}))
+    with TestClient(app):
+        ctx = app.state.ctx
+        with ctx.db() as db:
+            assert db.exec(select(Seat)).all() == []
+            from tide_server.models import ExamFile
+            assert len(db.exec(select(ExamFile)).all()) == 4
+
+
+def test_mock_room_boot_seeds_room(settings):
+    app = create_app(settings.model_copy(update={"demo": True, "mock_room": True}))
     with TestClient(app):
         ctx = app.state.ctx
         with ctx.db() as db:
@@ -37,7 +47,7 @@ def test_demo_boot_seeds_room(settings):
 
 
 async def test_sim_script_fires_after_start(settings, monkeypatch):
-    app = create_app(settings.model_copy(update={"demo": True}))
+    app = create_app(settings.model_copy(update={"demo": True, "mock_room": True}))
     with TestClient(app) as client:
         ctx = app.state.ctx
         token = client.post("/api/teacher/login", json={"pin": "2468"}).json()["token"]
@@ -63,7 +73,7 @@ def test_simulate_endpoint(teacher, ctx, paired):
 
 
 def test_real_agent_takes_over_simulated_seat(settings):
-    app = create_app(settings.model_copy(update={"demo": True}))
+    app = create_app(settings.model_copy(update={"demo": True, "mock_room": True}))
     with TestClient(app) as client:
         ctx = app.state.ctx
         from tide_server.models import Exam
@@ -74,3 +84,17 @@ def test_real_agent_takes_over_simulated_seat(settings):
         with ctx.db() as db:
             s = db.get(Seat, r.json()["seat_id"])
         assert (s.simulated, s.state) == (False, "lobby")
+
+
+async def test_mock_room_follows_the_exam_the_teacher_creates(settings):
+    app = create_app(settings.model_copy(update={"mock_room": True}))
+    with TestClient(app) as client:
+        ctx = app.state.ctx
+        room = SimRoom(ctx)
+        await room.tick()                                   # no exam yet: nothing happens
+        token = client.post("/api/teacher/login", json={"pin": "2468"}).json()["token"]
+        client.post("/api/teacher/exams", json={"title": "My test", "duration_min": 60, "apps": ["VS Code"]},
+                    headers={"Authorization": f"Bearer {token}"})
+        await room.tick()
+        with ctx.db() as db:
+            assert len(db.exec(select(Seat).where(Seat.simulated == True)).all()) == 59  # noqa: E712
