@@ -49,11 +49,16 @@ def test_process_signal_only_matters_when_denied():
     assert evaluate(bad, POLICY).hit.action == "kill"
 
 
-def test_internet_overlays_and_offline_allows():
-    on = evaluate(Signal(kind=Kind.NETWORK, data={"internet": True, "via": "Wi-Fi “Redmi”"}), POLICY)
+def test_internet_is_allowed_by_default():
+    assert evaluate(Signal(kind=Kind.NETWORK, data={"internet": True, "via": "Wi-Fi"}), POLICY).status == "allow"
+
+
+def test_internet_overlays_when_blocked_and_offline_allows():
+    blocked = Policy.from_apps(PRESETS["networking"], internet="blocked")
+    on = evaluate(Signal(kind=Kind.NETWORK, data={"internet": True, "via": "Wi-Fi “Redmi”"}), blocked)
     assert (on.hit.kind, on.hit.severity, on.hit.action, on.hit.title) == (
         "internet", "critical", "overlay", "Internet via Wi-Fi “Redmi”")
-    assert evaluate(Signal(kind=Kind.NETWORK, data={"internet": False}), POLICY).status == "allow"
+    assert evaluate(Signal(kind=Kind.NETWORK, data={"internet": False}), blocked).status == "allow"
 
 
 def test_clipboard_thresholds():

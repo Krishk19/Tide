@@ -65,6 +65,13 @@ def exam(ctx):
 
 
 @pytest.fixture
+def blocked_exam(ctx):
+    from tide_server.exam_service import create_exam
+    with ctx.db() as db:
+        return create_exam(db, "Offline Lab", 90 * 60, list(PRESETS["networking"]), internet="blocked")
+
+
+@pytest.fixture
 def paired(ctx, exam):
     from tide_server.exam_service import pair_seat
     with ctx.db() as db:

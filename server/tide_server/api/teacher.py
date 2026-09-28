@@ -35,6 +35,7 @@ class ExamIn(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     duration_min: int = Field(ge=5, le=300)
     apps: list[str]
+    internet: str = Field(default="allowed", pattern="^(allowed|blocked)$")
 
 
 @router.post("/login")
@@ -57,7 +58,7 @@ def require_teacher(authorization: str = Header(""), token: str = Query(""),
 @router.post("/exams")
 def create(body: ExamIn, ctx: Ctx = Depends(require_teacher)):
     with ctx.db() as db:
-        return exam_out(create_exam(db, body.title, body.duration_min * 60, body.apps))
+        return exam_out(create_exam(db, body.title, body.duration_min * 60, body.apps, body.internet))
 
 
 @router.post("/exams/{exam_id}/files")

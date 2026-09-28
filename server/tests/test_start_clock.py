@@ -21,8 +21,9 @@ def _seed(ctx, exam):
     return seats
 
 
-async def test_start_delivers_only_to_offline_ready_seats(ctx, teacher, exam, hub, monkeypatch):
+async def test_blocked_mode_delivers_only_to_offline_ready_seats(ctx, teacher, blocked_exam, hub, monkeypatch):
     monkeypatch.setattr(clock, "now", lambda: 1000.0)
+    exam = blocked_exam
     seats = _seed(ctx, exam)
     await ctx.ingest.handle(seats[7], {"t": "preflight", "internet": False, "extensions": ["GitHub Copilot"],
                                        "denied_closed": [], "inventory_count": 12})
@@ -112,3 +113,15 @@ def test_warn_and_force_submit(teacher, ctx, paired, hub):
     teacher.post(f"/api/teacher/seats/{seat.id}/force-submit")
     kinds = [m["t"] for sid, m in hub.agent_msgs if sid == seat.id]
     assert kinds == ["notice", "end"]
+
+
+async def test_allowed_mode_delivers_to_online_seats(ctx, teacher, exam, hub, monkeypatch):
+    """Default exams allow internet (monitored): being online never withholds questions."""
+    monkeypatch.setattr(clock, "now", lambda: 1000.0)
+    seats = _seed(ctx, exam)
+    await ctx.ingest.handle(seats[9], {"t": "preflight", "internet": True, "extensions": [],
+                                       "denied_closed": [], "inventory_count": 0})
+    with ctx.db() as db:
+        assert db.get(Seat, seats[9]).state == "ready"
+    teacher.post("/api/teacher/start")
+    assert any(sid == seats[9] and m["t"] == "start" for sid, m in hub.agent_msgs)

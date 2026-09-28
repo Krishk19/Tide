@@ -54,7 +54,7 @@ describe("room state", () => {
     expect(fmtClock(42 * 60 + 18)).toBe("42:18");
     expect(fmtClock(0)).toBe("0:00");
     const exam = { id: 1, title: "t", duration_s: 60, join_code: "X", state: "live" as const, started_at: 0,
-      ends_at: 1100, apps: [] };
+      ends_at: 1100, apps: [], internet: "allowed" as const };
     expect(remaining(exam, 10, 1000)).toBe(90);
     expect(remaining(null, 0, 1000)).toBe(0);
   });

@@ -14,8 +14,14 @@ def test_always_allowed_and_case_insensitive():
 
 
 def test_roundtrip_dict():
-    p = Policy.from_apps(PRESETS["networking"], server_ip="10.10.0.1")
+    p = Policy.from_apps(PRESETS["networking"], server_ip="10.10.0.1", internet="blocked")
     assert Policy.from_dict(p.to_dict()) == p
+
+
+def test_internet_defaults_to_allowed():
+    assert not Policy.from_apps([]).internet_blocked
+    assert Policy.from_dict({}).internet == "allowed"
+    assert Policy.from_apps([], internet="blocked").internet_blocked
 
 
 def test_host_match_matches_subdomains_not_suffixes():

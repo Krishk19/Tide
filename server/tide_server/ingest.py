@@ -122,7 +122,7 @@ class Ingest:
             seat.preflight_json = json.dumps({k: m.get(k) for k in
                                               ("internet", "extensions", "denied_closed", "inventory_count")})
             if seat.state in ("lobby", "ready", "blocked"):
-                if m.get("internet"):
+                if m.get("internet") and exam_policy(exam).internet_blocked:
                     seat.state = "blocked"
                 elif exam.state == "live":
                     go_live(db, exam, seat)

@@ -63,7 +63,7 @@ def evaluate(signal: Signal, policy: Policy) -> RuleResult:
         return ALLOW if policy.is_allowed_process(process) else UNKNOWN
 
     if k == Kind.NETWORK:
-        if d.get("internet"):
+        if d.get("internet") and policy.internet_blocked:
             return _hit("internet", "critical", "overlay", f"Internet via {d.get('via') or 'network'}")
         return ALLOW
     if k == Kind.CLIPBOARD:

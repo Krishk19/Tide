@@ -37,14 +37,21 @@ def preflight_message(r: PreflightResult) -> dict:
 
 def running_checks() -> list[dict]:
     return [{"id": i, "label": label, "detail": "", "state": "run"} for i, label in
-            (("internet", "Offline"), ("apps", "Apps"), ("extensions", "AI extensions"), ("files", "Files"))]
+            (("internet", "Network"), ("apps", "Apps"), ("extensions", "AI extensions"), ("files", "Files"))]
 
 
-def preflight_checks(r: PreflightResult) -> list[dict]:
+def _internet_check(online: bool, blocked: bool) -> dict:
+    if blocked:
+        return {"id": "internet", "label": "Internet on" if online else "Offline",
+                "detail": "Disconnect Wi-Fi / hotspot to continue" if online else "No internet on any adapter",
+                "state": "fail" if online else "ok"}
+    return {"id": "internet", "label": "Online" if online else "Offline",
+            "detail": "Internet allowed · activity is monitored", "state": "ok"}
+
+
+def preflight_checks(r: PreflightResult, internet_blocked: bool = False) -> list[dict]:
     return [
-        {"id": "internet", "label": "Internet on" if r.internet else "Offline",
-         "detail": "Disconnect Wi-Fi / hotspot to continue" if r.internet else "No internet on any adapter",
-         "state": "fail" if r.internet else "ok"},
+        _internet_check(r.internet, internet_blocked),
         {"id": "apps", "label": "Apps",
          "detail": f"Closed {', '.join(r.denied_closed)}" if r.denied_closed else "Nothing blocked running",
          "state": "ok"},

@@ -46,7 +46,8 @@ def flag_out(flag: Flag, seat_no: int) -> dict[str, Any]:
 def exam_out(exam: Exam) -> dict[str, Any]:
     return {"id": exam.id, "title": exam.title, "duration_s": exam.duration_s,
             "join_code": exam.join_code, "state": exam.state, "started_at": exam.started_at,
-            "ends_at": exam.ends_at, "apps": list(exam_policy(exam).apps)}
+            "ends_at": exam.ends_at, "apps": list(exam_policy(exam).apps),
+            "internet": exam_policy(exam).internet}
 
 
 def event_text(kind: str, data: dict[str, Any]) -> str:
