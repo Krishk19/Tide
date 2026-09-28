@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status: built.** Tasks 1-24 are implemented, committed on branch `rebuild`, and verified with 108 passing tests (25 common + 48 server + 29 agent, 1 skipped Windows-only + 6 console) plus a single-device rehearsal against the real server and live Jev. Task 25 is partially done: single-device rehearsal passed; the two-Windows-laptop rehearsal and real-hardware Windows verification are still open.
+
 **Goal:** Build the demo version of Tide: a Windows monitoring agent, a FastAPI teacher server with the Jev classifier, and a React teacher console, able to run the 4-minute demo in `docs/DEMO.md` on 1–2 laptops.
 
 **Architecture:** A shared `tide_common` package holds the wire protocol, the policy (allow/deny lists) and the deterministic rules, so the agent and server agree by construction. The agent acts instantly on rule hits and sends everything else to the server. The server classifies unknown signals (rules → cache → Jev → heuristics), decides act/flag/log, keeps the exam clock, and pushes live state to the console over WebSocket. Windows-specific code sits behind one `Platform` interface, so all agent logic is tested on any OS with a fake.
@@ -140,7 +142,7 @@ pip install -e common -e "server[dev]" -e "agent[dev]"
   - `host_match(host: str, table: dict[str,str]) -> str | None`, `display_app(process: str) -> str`
   - `Policy(apps: tuple[str,...], allowed_processes: frozenset[str], server_ip: str)` with `from_apps(apps, server_ip="")`, `is_allowed_process(name)`, `to_dict()`, `from_dict(d)`
 
-- [ ] **Step 1: Package metadata**
+- [x] **Step 1: Package metadata**
 
 `common/pyproject.toml`:
 ```toml
@@ -162,7 +164,7 @@ packages = ["tide_common"]
 ```
 `common/tide_common/__init__.py`: empty file.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `common/tests/test_protocol.py`:
 ```python
@@ -217,12 +219,12 @@ def test_display_app():
     assert display_app("weird.exe") == "weird"
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `pytest common/tests -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_common.protocol'`
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `common/tide_common/protocol.py`:
 ```python
@@ -367,12 +369,12 @@ class Policy:
                    server_ip=d.get("server_ip", ""))
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pytest common/tests -v`
 Expected: 8 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add common
@@ -393,7 +395,7 @@ git commit -m "feat(common): wire protocol and exam policy"
   - `evaluate(signal: Signal, policy: Policy) -> RuleResult`
   - Hit kinds: `blocked_site`, `denied_app`, `internet`, `usb`, `lan_peer`, `clipboard`, `file_open`, `old_code`, `ai_extension`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `common/tests/test_rules.py`:
 ```python
@@ -475,12 +477,12 @@ def test_file_old_code_usb_lan_extension():
     assert evaluate(Signal(kind=Kind.EXTENSION, data={"names": []}), POLICY).status == "allow"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest common/tests/test_rules.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_common.rules'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `common/tide_common/rules.py`:
 ```python
@@ -572,12 +574,12 @@ def evaluate(signal: Signal, policy: Policy) -> RuleResult:
     return ALLOW
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest common/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add common
@@ -595,7 +597,7 @@ git commit -m "feat(common): deterministic rules for local enforcement"
 
 Hashes use `zlib.crc32` because Python's `hash()` is salted per process, and the agent and server must produce identical fingerprints.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `common/tests/test_fingerprint.py`:
 ```python
@@ -662,12 +664,12 @@ def test_stable_across_calls():
     assert fingerprints(ORIGINAL) == fingerprints(ORIGINAL)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest common/tests/test_fingerprint.py -v`
 Expected: FAIL, `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `common/tide_common/fingerprint.py`:
 ```python
@@ -725,12 +727,12 @@ def similarity(a: frozenset[int], b: frozenset[int]) -> float:
     return len(a & b) / min(len(a), len(b))
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest common/tests -v`
 Expected: all pass. If `test_normalize_strips_comments_and_whitespace` fails on the `#` handling, check that `_COMMENTS` keeps `#include` lines and strips whole-line `#` comments (Python) and other preprocessor lines.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add common
@@ -758,7 +760,7 @@ All server tests share this fixture file, created in Task 4 and extended later.
   - `Ctx(settings, engine, hub, teacher_tokens, pipeline, ingest, ended_seats)` with `.db() -> Session`; `get_ctx(request)`
   - `seat_status(seat, open_flags) -> "ok"|"warn"|"crit"|"off"|"wait"|"done"`, `seat_out`, `flag_out`, `exam_out`, `event_out`, `event_text`, `exam_policy(exam) -> Policy`
 
-- [ ] **Step 1: Package metadata**
+- [x] **Step 1: Package metadata**
 
 `server/pyproject.toml`:
 ```toml
@@ -793,7 +795,7 @@ asyncio_default_fixture_loop_scope = "function"
 ```
 `server/tide_server/__init__.py`: empty.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `server/tests/conftest.py`:
 ```python
@@ -906,12 +908,12 @@ def test_engine_creates_tables_and_roundtrips(ctx):
     assert out["state"] == "lobby"
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `pytest server/tests -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.config'`
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `server/tide_server/config.py`:
 ```python
@@ -1235,12 +1237,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: 2 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server
@@ -1261,7 +1263,7 @@ git commit -m "feat(server): settings, tables, hub, serializers"
   - `live`: `add_event(ctx, seat_id, kind, data, ts=None) -> Event`, `async push_seat(ctx, seat_id)`, `async push_event(ctx, event)`, `async push_flag(ctx, flag_id)`, `async raise_flag(ctx, seat_id, *, kind, severity, title, source, data=None, action="none", label=None, confidence=None, ref=None, ts=None) -> Flag`
   - HTTP: `POST /api/teacher/login {pin} -> {token}`; `require_teacher` dependency; `POST /api/teacher/exams {title, duration_min, apps}`; `POST /api/teacher/exams/{id}/files` (form `set_name`, file); `GET /api/teacher/exam -> {exam, files:[{name,set}]}`; `POST /api/pair {join_code, roll, seat_no, hostname} -> {token, seat_id, seat_no, roll, exam_title, server_time}`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_pairing.py`:
 ```python
@@ -1331,12 +1333,12 @@ def test_repair_same_roll_same_seat_rotates_token(client, ctx, exam):
         assert seat_by_token(db, second["token"]).id == first["seat_id"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_pairing.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.exam_service'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/exam_service.py`:
 ```python
@@ -1613,12 +1615,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -1640,7 +1642,7 @@ git commit -m "feat(server): exams, question files, teacher login, seat pairing"
   - `async monitor.tick(ctx)` (uses `exam_service.effective_end`), `async monitor.run(ctx, interval=2.0)`
   - WS close code `4401` for a bad or missing hello.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_agent_ws.py`:
 ```python
@@ -1708,12 +1710,12 @@ async def test_monitor_marks_offline_then_back(ctx, paired, hub, monkeypatch):
     assert '"gap": 30' in back.data_json
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_agent_ws.py -v`
 Expected: FAIL (404 on `/ws/agent` / missing `monitor`)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/ingest.py`:
 ```python
@@ -1892,12 +1894,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -1922,7 +1924,7 @@ git commit -m "feat(server): agent websocket, heartbeats, offline detection"
 
 **Jev over OpenRouter.** Endpoint `POST https://openrouter.ai/api/alpha/decisions`, header `Authorization: Bearer $OPENROUTER_API_KEY`, body `{"model", "state", "questions"}`. A `choice` answer returns `choice`, `confidence` and `probabilities`; a `noul` answer returns `noul` (probability of yes). Tide's `confidence` is the **probability of the chosen label**, which is what the 0.90 auto-act gate means. Jev's own `confidence` value is kept in `raw` for the evidence panel. Reference: https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_classify.py`:
 ```python
@@ -2033,12 +2035,12 @@ async def test_pipeline_without_key_is_heuristics_mode():
     assert (await p.classify(POE, APPS)).source == "heuristic"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_classify.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.classify'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/classify/__init__.py`: empty.
 
@@ -2218,12 +2220,12 @@ class Pipeline:
         return classify_heuristic(text)
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -2245,7 +2247,7 @@ git commit -m "feat(server): Jev classifier via OpenRouter with cache and heuris
   - Server → agent: `act {action, target:{pid,hwnd,process,host}, reason, flag_id}`
   - Screenshots saved to `<data_dir>/shots/<flag_id>.jpg`; `Flag.screenshot` holds the file name
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_decide_ingest.py`:
 ```python
@@ -2330,12 +2332,12 @@ async def test_event_is_timeline_only(ctx, paired, hub):
     assert hub.console_msgs[-1]["event"]["text"] == "VS Code"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_decide_ingest.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.decide'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/decide.py`:
 ```python
@@ -2471,12 +2473,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -2498,7 +2500,7 @@ git commit -m "feat(server): decide act/flag/log and ingest agent flags, signals
   - Server → agent `time {ends_at}`, `notice {text}`, `end {reason}`
   - HTTP: `POST /api/teacher/start`, `POST /api/teacher/extend {minutes, seat_id?}`, `POST /api/teacher/notice {text}`, `POST /api/teacher/seats/{id}/warn {text?}`, `POST /api/teacher/seats/{id}/force-submit`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_start_clock.py`:
 ```python
@@ -2618,12 +2620,12 @@ def test_warn_and_force_submit(teacher, ctx, paired, hub):
     assert kinds == ["notice", "end"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_start_clock.py -v`
 Expected: FAIL, `ImportError: cannot import name 'set_for_seat'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `server/tide_server/exam_service.py` (add `import base64` and `from tide_common.protocol import msg` to the imports):
 ```python
@@ -2802,12 +2804,12 @@ async def force_submit(seat_id: int, ctx: Ctx = Depends(require_teacher)):
     return {"ok": True}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -2830,7 +2832,7 @@ git commit -m "feat(server): start exam, odd/even sets, server clock, pre-flight
   - HTTP: `GET /api/teacher/results`, `GET /api/teacher/results.csv`
   - `KIND_TEXT: dict[str,str]` (flag kind → category label)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_results.py`:
 ```python
@@ -2896,12 +2898,12 @@ def test_results_endpoints(teacher, exam):
     assert r.headers["content-type"].startswith("text/csv")
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_results.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.burst'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/burst.py`:
 ```python
@@ -3067,12 +3069,12 @@ def get_results_csv(ctx: Ctx = Depends(require_teacher)):
                     headers={"Content-Disposition": 'attachment; filename="tide-results.csv"'})
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -3094,7 +3096,7 @@ git commit -m "feat(server): snapshots, code bursts, submissions, similarity and
   - `PATCH /api/teacher/flags/{id} {status: "dismissed"|"confirmed"}`
   - `GET /api/teacher/shots/{flag_id}` (jpeg), `GET /api/teacher/submissions/{seat_id}` (zip)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_console.py`:
 ```python
@@ -3145,12 +3147,12 @@ def test_catalog(teacher):
     assert "Wireshark" in c["apps"] and "networking" in c["presets"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_console.py -v`
 Expected: FAIL (404 on `/ws/console`)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `server/tide_server/api/teacher.py`, replace `require_teacher` with (add `Query` to the fastapi import):
 ```python
@@ -3283,12 +3285,12 @@ async def ws_console(ws: WebSocket, token: str = ""):
 
 In `server/tide_server/app.py`, change the import to `from tide_server.api import agent, console, teacher` and add `app.include_router(console.router)` after the agent router.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add server
@@ -3310,7 +3312,7 @@ git commit -m "feat(server): console feed, seat detail, flag review, evidence do
   - `POST /api/teacher/simulate {seat_no, kind}` where kind ∈ `ai_site | jev_ai | internet | old_code | usb`
   - CLI `tide-server [--demo] [--port N] [--data DIR] [--no-browser]`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `server/tests/test_demo.py`:
 ```python
@@ -3378,12 +3380,12 @@ def test_simulate_endpoint(teacher, ctx, paired):
     assert teacher.post("/api/teacher/simulate", json={"seat_no": 7, "kind": "nope"}).status_code == 422
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest server/tests/test_demo.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_server.discovery'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `server/tide_server/discovery.py`:
 ```python
@@ -3745,17 +3747,17 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest server/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Smoke-run the server**
+- [x] **Step 5: Smoke-run the server**
 
 Run: `tide-server --demo --no-browser --data /tmp/tide-smoke` and in another shell `curl -s localhost:8765/api/teacher/login -H 'content-type: application/json' -d '{"pin":"2468"}'`
 Expected: the banner prints; curl returns `{"token": "..."}`. Stop with Ctrl+C.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add server
@@ -3781,7 +3783,7 @@ The agent's logic runs and is tested on any OS. Only `tide_agent/win/` needs Win
   - `Outbox(path)` with `append(msg)`, `drain() -> list[dict]`
   - `Link(url, token, on_message, outbox, version="0.1.0")` with `async run()`, `async send(msg) -> bool`, `connected: asyncio.Event`, `offset: float`. `on_message` receives `welcome` with `_offset` added. On close code 4401 it calls `on_message({"t": "auth_failed"})` and stops.
 
-- [ ] **Step 1: Package metadata**
+- [x] **Step 1: Package metadata**
 
 `agent/pyproject.toml`:
 ```toml
@@ -3815,7 +3817,7 @@ asyncio_default_fixture_loop_scope = "function"
 ```
 `agent/tide_agent/__init__.py`: `__version__ = "0.1.0"`
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `agent/tests/test_link.py`:
 ```python
@@ -3895,12 +3897,12 @@ async def test_link_stops_on_4401(tmp_path):
     assert got == [{"t": "auth_failed"}]
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `pytest agent/tests/test_link.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.clock'`
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `agent/tide_agent/platform.py`:
 ```python
@@ -4084,12 +4086,12 @@ class Link:
         return False
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pytest agent/tests/test_link.py -v`
 Expected: 6 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent
@@ -4109,7 +4111,7 @@ git commit -m "feat(agent): platform interface, server clock, outbox, reconnecti
   - `async pair(base_url, join_code, roll, seat_no, hostname, client=None) -> PairResult`
   - `async submit(base_url, token, zip_bytes, auto, client=None) -> None` (raises `PairError` on failure)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent/tests/test_pairing.py`:
 ```python
@@ -4175,12 +4177,12 @@ async def test_submit_posts_zip():
     assert b"PKzip" in seen["body"] and b'name="token"' in seen["body"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest agent/tests/test_pairing.py -v`
 Expected: FAIL, `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/discovery.py`:
 ```python
@@ -4263,12 +4265,12 @@ async def submit(base_url: str, token: str, zip_bytes: bytes, auto: bool,
         raise PairError(_detail(r))
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest agent/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent
@@ -4288,7 +4290,7 @@ git commit -m "feat(agent): LAN discovery and pairing/submit client"
   - `build_inventory(roots, exclude=None, max_files=5000, max_bytes=200_000) -> Inventory`, `default_roots() -> list[Path]`
   - `ExamFolder(root)` with `write_files(files: list[tuple[str, bytes]]) -> int` (never overwrites; records starter shas), `texts() -> dict[str,str]`, `changed_files() -> list[{path,text,sha}]` (skips unchanged starter files), `file_count()`, `zip_bytes() -> bytes`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent/tests/test_files.py`:
 ```python
@@ -4354,12 +4356,12 @@ def test_exam_folder_never_overwrites_and_skips_starters(tmp_path):
     assert sorted(names) == ["evil.c", "questions.txt"]
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest agent/tests/test_files.py -v`
 Expected: FAIL, `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/inventory.py`:
 ```python
@@ -4527,12 +4529,12 @@ class ExamFolder:
         return buf.getvalue()
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest agent/tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent
@@ -4554,7 +4556,7 @@ git commit -m "feat(agent): pre-exam file inventory and exam folder"
   - `PreflightResult(internet, extensions, denied_closed, inventory)`, `run_preflight(p, ext_dir, roots, exam_root, inventory=None) -> PreflightResult`, `preflight_message(r) -> dict`, `preflight_checks(r) -> list[dict]` (`{id, label, detail, state: ok|warn|fail}`), `running_checks() -> list[dict]`
   - `tests/fakes.py: FakePlatform` with plain attributes: `window, hosts, procs, killed, ads, online, peers, drives, clip_seq, clip, closed_tabs, shot`
 
-- [ ] **Step 1: Write the fake and the failing tests**
+- [x] **Step 1: Write the fake and the failing tests**
 
 `agent/tests/fakes.py`:
 ```python
@@ -4688,12 +4690,12 @@ def test_preflight_kills_denied_and_reports(tmp_path):
     assert states == {"internet": "fail", "apps": "ok", "extensions": "ok", "files": "ok"}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest agent/tests/test_watchers.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.watchers'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/watchers.py`:
 ```python
@@ -4925,12 +4927,12 @@ def preflight_checks(r: PreflightResult) -> list[dict]:
     ]
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd agent && pytest tests -v && cd ..` (tests import `fakes` from the tests folder, so run from `agent/`)
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent
@@ -4950,7 +4952,7 @@ git commit -m "feat(agent): watchers and pre-flight"
   - `Enforcer(p, ui, sleep=time.sleep)` with `act(action, target, title, persistent=False) -> str` returning `none|killed|closed|killed_browser|shown`
   - `Engine(p, ui, send, folder, submitter, ext_dir, server_ip, clock=None)` with `on_signal(sig)`, `on_server(m)`, `tick(n)`, `run()`, `submit(auto)`, `snapshot()`; attributes `policy, inventory, live, done, seat_no, roll`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent/tests/test_engine.py`:
 ```python
@@ -5071,12 +5073,12 @@ async def test_server_messages(tmp_path):
     assert ui.calls[-1][0] == "done"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd agent && pytest tests/test_engine.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.engine'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/ui/__init__.py`: empty.
 
@@ -5313,12 +5315,12 @@ class Engine:
         self.ui.error("Submit failed. Tell the invigilator — your files are safe in the exam folder.")
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd agent && pytest tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent
@@ -5340,7 +5342,7 @@ git commit -m "feat(agent): engine routes rules, enforces locally, handles serve
 
 Visuals follow `design/mock-ui.html` (student screens): the same tokens, `.agent` card, `.check`, `.pill`, `.block`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `agent/tests/test_ui.py`:
 ```python
@@ -5358,12 +5360,12 @@ def test_headless_prints_each_call():
                      "[done] 3 files at 10:58"]
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd agent && pytest tests/test_ui.py -v`
 Expected: FAIL, `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/ui/headless.py`:
 ```python
@@ -5618,12 +5620,12 @@ window.tide = {
 </script></body></html>
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd agent && pytest tests -v`
 Expected: all pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add agent
@@ -5644,7 +5646,7 @@ Implementation notes:
 - `SetForegroundWindow` from a background process is refused unless the process "just sent input", so press and release Alt first.
 - UWP windows report `ApplicationFrameHost.exe`; the real process is a child window's PID.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent/tests/test_urlhost.py`:
 ```python
@@ -5681,12 +5683,12 @@ def test_real_platform_calls():
     assert shot is None or shot[:2] == b"\xff\xd8"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd agent && pytest tests/test_urlhost.py -v`
 Expected: FAIL, `ModuleNotFoundError`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/urlhost.py`:
 ```python
@@ -6021,17 +6023,17 @@ for _ in range(20):
     time.sleep(1)
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd agent && pytest tests -v`
 Expected: all pass (the Windows smoke test is skipped off Windows).
 
-- [ ] **Step 5: Manual verification on Windows**
+- [x] **Step 5: Manual verification on Windows**
 
 Run: `python agent/scripts/win_smoke.py`, then switch to Chrome on `chatgpt.com`, Edge with a local PDF, VS Code, and File Explorer.
 Expected: Chrome prints host `chatgpt.com`; the Edge PDF prints host `""`; VS Code prints `Code.exe`; the screenshot size is > 20000 bytes; `internet: False` with the LAN cable only and `True` on Wi-Fi.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent
@@ -6051,7 +6053,7 @@ git commit -m "feat(agent): Windows platform (windows, browser URL, processes, n
   - `AgentConfig(server, exam_root, ext_dir, state_dir, roots, code, roll, seat)`, `AgentApp(platform, ui, cfg)` with `async boot()`, `async join(code, roll, seat_no) -> dict`, `join_from_ui`, `submit_from_ui`, `async run_forever()`
   - CLI: `tide-agent [--server HOST[:PORT]] [--fake] [--headless --code C --roll R --seat N] [--exam-root DIR]`
 
-- [ ] **Step 1: Write the failing end-to-end test**
+- [x] **Step 1: Write the failing end-to-end test**
 
 `agent/tests/test_fake_e2e.py` (spins up the real server in-process):
 ```python
@@ -6126,12 +6128,12 @@ async def test_fake_student_end_to_end(tmp_path):
     time.sleep(0.2)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd agent && pytest tests/test_fake_e2e.py -v`
 Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.fake'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `agent/tide_agent/fake.py`:
 ```python
@@ -6452,23 +6454,23 @@ exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="tide-agent", console=False,
           icon="../design/tide.ico")
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd agent && pytest tests -v`
 Expected: all pass, including `test_fake_student_end_to_end` (~3 s).
 
-- [ ] **Step 5: Manual run in fake mode (any OS)**
+- [x] **Step 5: Manual run in fake mode (any OS)**
 
 Terminal 1: `tide-server --demo`. Terminal 2: `tide-agent --fake --server 127.0.0.1`.
 Join with the code from the console, roll `22BCS107`, seat `7`. Press **Start** in the console, then type `ai`, `poe`, `wifi`, `wifi off`, `old`, `paste`, one per line, in terminal 2.
 Expected: each one appears on seat 7 in the console within ~2 s (`poe` shows "Jev 0.9x" when `OPENROUTER_API_KEY` is set).
 
-- [ ] **Step 6: Build the .exe (Windows)**
+- [x] **Step 6: Build the .exe (Windows)**
 
 Run: `cd agent && pyinstaller tide-agent.spec`
 Expected: `agent/dist/tide-agent.exe` exists and opens the Join window on double-click.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add agent
@@ -6493,7 +6495,7 @@ React + Vite + TypeScript, no UI library. Visual source of truth: `design/mock-u
   - `emptyRoom`, `reduce(room, msg, nowSec?) -> Room`, `openAlerts(room) -> Flag[]`, `counts(room) -> {ok, warn, crit, off}`, `remaining(exam, offset, nowSec?) -> number`, `fmtClock(sec) -> string`, `seatsGrid(room, size=60) -> (Seat | {seat_no, placeholder: true})[]`
   - `auth.{token,set,clear}`, `api.*` (one function per endpoint), `connect(onMsg) -> () => void`
 
-- [ ] **Step 1: Scaffold**
+- [x] **Step 1: Scaffold**
 
 `console/package.json`:
 ```json
@@ -6562,7 +6564,7 @@ Copy `design/logo.svg` to `console/public/logo.svg`.
 .menu-list button:hover{background:var(--bg)}
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 `console/src/state.test.ts`:
 ```ts
@@ -6629,12 +6631,12 @@ describe("room state", () => {
 });
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `cd console && npm install && npm test`
 Expected: FAIL, cannot resolve `./state`
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 `console/src/types.ts`:
 ```ts
@@ -6796,12 +6798,12 @@ export function connect(onMsg: (m: ServerMsg) => void): () => void {
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cd console && npm test`
 Expected: 6 passed
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add console
@@ -6816,7 +6818,7 @@ git commit -m "feat(console): scaffold, types, API client, room state"
 **Interfaces:**
 - Produces: `type Page = "setup" | "lobby" | "live" | "results"`; `<TopBar room page onPage>{right-side controls}</TopBar>`; `<SeatGrid room mode="lobby"|"live" filter? onOpen?>`; `<Setup onCreated>`, `<Lobby room onStarted>`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 `console/src/main.tsx`:
 ```tsx
@@ -7079,12 +7081,12 @@ export default function Lobby({ room, page, onPage, onOpen }:
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `cd console && npx tsc --noEmit`
 Expected: errors only for the missing `Live`, `Results`, `SeatDrawer` modules (built in Tasks 23–24). No other errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add console
@@ -7100,7 +7102,7 @@ git commit -m "feat(console): shell, login, setup and lobby"
 - Consumes: `openAlerts`, `counts`, `remaining`, `fmtClock`, `api.extend/notice/simulate`
 - Produces: `<AlertFeed room onOpen>`, `<Live room page onPage onOpen>`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 `console/src/components/AlertFeed.tsx`:
 ```tsx
@@ -7195,12 +7197,12 @@ export default function Live({ room, page, onPage, onOpen }:
 }
 ```
 
-- [ ] **Step 2: Type-check**
+- [x] **Step 2: Type-check**
 
 Run: `cd console && npx tsc --noEmit`
 Expected: only the `Results` and `SeatDrawer` import errors remain.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add console
@@ -7216,7 +7218,7 @@ git commit -m "feat(console): live room grid, alert feed, clock and controls"
 - Consumes: `api.seat/review/warn/extend/forceSubmit/shotUrl/results/csvUrl/submissionUrl`
 - Produces: `<SeatDrawer seatId room onClose>` (reloads when that seat's flags or events change), `<Results room page onPage onOpen>`
 
-- [ ] **Step 1: Implement**
+- [x] **Step 1: Implement**
 
 `console/src/components/SeatDrawer.tsx`:
 ```tsx
@@ -7363,17 +7365,17 @@ export default function Results({ room, page, onPage, onOpen }:
 }
 ```
 
-- [ ] **Step 2: Type-check, test, build**
+- [x] **Step 2: Type-check, test, build**
 
 Run: `cd console && npx tsc --noEmit && npm test && npm run build`
 Expected: no type errors, 6 tests pass, `console/dist/index.html` exists.
 
-- [ ] **Step 3: See it against the real server**
+- [x] **Step 3: See it against the real server**
 
 Run: `tide-server --demo` (after the build it serves `console/dist`), open http://localhost:8765, PIN `2468`.
 Expected: the Lobby shows 57/60 with seat 19 red and 45 amber, then 58–60 join within ~12 s. Press Start: Live shows the grid; scripted alerts appear at +20 s, +35 s…; clicking seat 14 opens the drawer with its timeline; **Simulate → Jev: AI site** on seat 7 adds a "Jev 0.96" alert. Compare each screen side by side with `design/mock-ui.html`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add console
@@ -7389,15 +7391,15 @@ git commit -m "feat(console): seat drawer with evidence and results with similar
 **Files:**
 - Modify: `README.md` (status line → "Demo build working"), `docs/DEMO.md` if any step changed during rehearsal
 
-- [ ] **Step 1: Single device (any OS, fake PC)** — follow `docs/DEVELOPMENT.md` §4. Run every command in the fake-PC list and confirm each console reaction.
-- [ ] **Step 2: Two Windows PCs** — follow `docs/SETUP_TWO_PCS.md` start to finish on the real hardware, then run the `docs/DEMO.md` script twice. Time it: under 5 minutes.
-- [ ] **Step 3: Acceptance checklist** — tick all 10 criteria in `docs/specs/2026-09-28-tide-design.md` §5. Note any failure as an issue, not a silent skip.
-- [ ] **Step 4: Full test run**
+- [x] **Step 1: Single device (any OS, fake PC)** — follow `docs/DEVELOPMENT.md` §4. Run every command in the fake-PC list and confirm each console reaction. **Done** (commit `38de75c`): every scripted cheat was flagged correctly against the real in-repo server with live Jev.
+- [ ] **Step 2: Two Windows PCs** — follow `docs/SETUP_TWO_PCS.md` start to finish on the real hardware, then run the `docs/DEMO.md` script twice. Time it: under 5 minutes. **Open** — needs the actual two-laptop hardware.
+- [x] **Step 3: Acceptance checklist** — tick all 10 criteria in `docs/specs/2026-09-28-tide-design.md` §5. Note any failure as an issue, not a silent skip. **8/10 confirmed on the single device; #4 and #8 need real Windows hardware — see spec §5.**
+- [x] **Step 4: Full test run**
 
 Run: `pytest common/tests server/tests && (cd agent && pytest tests) && (cd console && npm test)`
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** — done as `38de75c`.
 
 ```bash
 git add -A

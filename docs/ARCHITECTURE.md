@@ -5,6 +5,12 @@
 > Read this once and you should be able to run the demo, explain every box on the diagram,
 > and answer a judge's "but what if the student…" question.
 
+**Status: built.** Everything described here is implemented on branch `rebuild`
+(`docs/plans/2026-09-28-tide-demo-build.md`, all 25 tasks) and verified with 108 passing tests plus a
+single-device rehearsal against the real Jev API. Open items: real-Windows verification of the
+address-bar/close-tab/screenshot code (fake platform covers the logic, not the OS calls), and the
+two-laptop dress rehearsal. See `docs/specs/2026-09-28-tide-design.md` §5 for the exact checklist.
+
 ---
 
 ## 1. The problem, from first principles

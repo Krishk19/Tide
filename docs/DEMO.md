@@ -3,6 +3,10 @@
 The exact demo script, and answers to the questions judges ask.
 **Setting up the two laptops:** [SETUP_TWO_PCS.md](SETUP_TWO_PCS.md). **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md).
 
+**Status:** the script below has been rehearsed on one device with a simulated Windows PC talking to
+the real server and live Jev (`docs/DEVELOPMENT.md` §4) — every step fired correctly. **Not yet
+rehearsed** on two real Windows laptops; do that before presenting (`docs/SETUP_TWO_PCS.md`).
+
 ---
 
 ## 1. Hardware and network

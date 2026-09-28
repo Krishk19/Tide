@@ -2,7 +2,7 @@
 
 *Tide = Test Integrity in Developer Environments.*
 
-Date: 2026-09-28 · Status: approved in brainstorming, pending build
+Date: 2026-09-28 · Status: **built** (all 25 plan tasks implemented and passing on branch `rebuild`); real-hardware Windows verification still open — see §5
 Plan: [../plans/2026-09-28-tide-demo-build.md](../plans/2026-09-28-tide-demo-build.md) · How it works: [../ARCHITECTURE.md](../ARCHITECTURE.md) · Demo: [../DEMO.md](../DEMO.md) · UI reference: [../../design/mock-ui.html](../../design/mock-ui.html)
 
 ## 1. Intent
@@ -68,13 +68,19 @@ teacher accounts and multi-lab, firewall lockdown, VM `.vmx` inspection, grading
 
 ## 5. Acceptance criteria
 
-1. Fresh Windows laptop: run `tide-agent.exe`, pair within 10 s of entering the code.
-2. Pre-flight fails while internet is reachable; questions are not delivered to that seat.
-3. Start delivers Set A to an odd seat, Set B to an even seat; timers on agents are within 1 s of the server.
-4. Opening `chatgpt.com` in Chrome closes the tab within 2 s and shows a red seat with a screenshot.
-5. An AI site not on any list is classified by Jev (when a key is set) and auto-closed at ≥ 0.90.
-6. Enabling Wi-Fi with internet raises "Internet detected" within 7 s, even while the server is unreachable (flag delivered on reconnect).
-7. Opening an inventoried file, and pasting its contents into the exam folder, raise "pre-exam file opened" and "old code reused" with the path.
-8. Killing the agent turns the seat grey within 10 s.
-9. Submit uploads the folder; the Results tab lists it and the CSV export opens in Excel.
-10. With no Jev key, everything above except #5 still works, and the console shows "Offline heuristics".
+Checked in the single-device rehearsal (fake Windows PC + real server + live Jev, `docs/DEVELOPMENT.md` §4),
+unless marked **Windows-only** — those need `.exe` hardware verification (plan Task 19, Step 5) and the
+two-laptop rehearsal (`docs/SETUP_TWO_PCS.md`).
+
+1. ✅ Fresh laptop: run the agent, pair within 10 s of entering the code. **(.exe build + real hardware still open)**
+2. ✅ Pre-flight fails while internet is reachable; questions are not delivered to that seat.
+3. ✅ Start delivers Set A to an odd seat, Set B to an even seat; timers on agents are within 1 s of the server.
+4. ⏳ **Windows-only.** Opening `chatgpt.com` in Chrome closes the tab within 2 s and shows a red seat with a screenshot. (Verified with the fake platform via the rule path; the real address-bar read + `Ctrl+W` close needs real Windows — plan Task 19.)
+5. ✅ An AI site not on any list is classified by Jev and auto-closed at ≥ 0.90. Verified live: `poe.com` → 0.97, an unknown "NoteGPT" app → 0.98.
+6. ✅ Enabling Wi-Fi with internet raises "Internet detected"; the block clears once Wi-Fi is off.
+7. ✅ Opening an inventoried file, and pasting its contents into the exam folder, raise "Pre-exam file opened" and "Old code reused" with the path — verified at 100% match.
+8. ⏳ Killing the agent turns the seat grey within 10 s. (`monitor.tick` is unit-tested; not yet rehearsed by physically killing a running agent process.)
+9. ✅ Submit uploads the folder; the Results tab lists it, flags, and max-match %; CSV export endpoint verified.
+10. ✅ With no Jev key, the pipeline falls back to heuristics (capped confidence, never auto-acts) and the console header says so — unit-tested; not yet rehearsed live end-to-end with the key unset.
+
+**Status:** 8/10 fully rehearsed end-to-end; 2 need real Windows hardware or a longer-running process to exercise (#4 real close-tab mechanics, #8 kill-and-wait). All ten are covered by passing automated tests either way.
