@@ -1,5 +1,7 @@
 # Tide — Architecture
 
+**Tide = Test Integrity in Developer Environments.** It keeps lab tests honest while students use real developer tools.
+
 > Read this once and you should be able to run the demo, explain every box on the diagram,
 > and answer a judge's "but what if the student…" question.
 
@@ -65,7 +67,7 @@ Three deliverables:
 
 | Component | Tech | Runs on | Job |
 |---|---|---|---|
-| **Tide Agent** | Python 3.12, `pywin32`, `psutil`, `uiautomation`, `mss`, `watchdog`, `pywebview`; shipped as one `.exe` via PyInstaller | Every student PC | See, act, collect evidence, deliver questions, collect answers |
+| **Tide Agent** | Python 3.12, `pywin32`, `psutil`, `uiautomation`, `mss`, `pywebview`; shipped as one `.exe` via PyInstaller | Every student PC | See, act, collect evidence, deliver questions, collect answers |
 | **Tide Server** | Python 3.12, FastAPI, WebSockets, SQLModel/SQLite | Teacher laptop | Pair seats, classify, decide, keep the clock, store everything |
 | **Teacher Console** | React + Vite + TypeScript, served by the server | Teacher's browser | Create exam, watch the room, review evidence, export |
 
@@ -234,16 +236,18 @@ Certain matches are acted on immediately, with no round-trip:
 
 | Match | Action |
 |---|---|
-| Browser host on AI deny list (`chatgpt.com`, `claude.ai`, `gemini.google.com`, `copilot.microsoft.com`, `perplexity.ai`, `poe.com`, `chat.deepseek.com`, …) | **Close tab** + block overlay + flag |
+| Browser host on the deny list (`chatgpt.com`, `claude.ai`, `gemini.google.com`, `copilot.microsoft.com`, `perplexity.ai`, `chat.deepseek.com`, Gmail, WhatsApp Web, Drive, Classroom, …). `poe.com` is left off on purpose, so the demo shows Jev catching an unlisted site | **Close tab** + block overlay + flag |
 | Process on deny list | **Kill process** + block overlay + flag |
 | Internet reachable | **Block overlay stays until offline** + flag (critical) |
 | USB drive inserted | Flag (high), no action |
 
 ### 5.2 Jev — the AI classifier (server)
-**What Jev is:** a classifier model from TypeSafe AI (early access Sept 2026). You give it input
+**What Jev is:** a decision model from TypeSafe AI (early access Sept 2026). You give it input
 text and a fixed set of typed questions. It returns **a choice + probabilities + a confidence**,
-with no generated text. Roughly 0.1–0.7 s per call and very cheap, which is why classifying
-every ambiguous event from 60 seats is affordable.
+with no generated text. We call it through **OpenRouter's Decisions API**
+(`POST https://openrouter.ai/api/alpha/decisions`, model `~typesafe/jev-latest`, key in
+`OPENROUTER_API_KEY`). Measured on our prompts: ~0.4 s per call, fractions of a cent, which is why
+classifying every ambiguous event from 60 seats is affordable.
 
 **Why Jev and not an LLM:** we need a decision from a fixed menu with a calibrated confidence
 that we can threshold, not prose. LLM judges are slower, pricier, and their confidence isn't a
@@ -270,13 +274,23 @@ Event: foreground window
 | `violation` ≥ 0.60 | Flag for review (amber) |
 | otherwise | Log only (visible in timeline) |
 
-Verdicts are **cached** per normalized `(process, title pattern, host)`, so the same window is
-classified once per exam. Repeated events cost nothing.
+Tide's confidence is the **probability Jev gives the chosen label** (Jev's own `confidence` value is
+kept alongside as evidence). Verdicts are **cached** per `(browser, host)` or `(process, title pattern)`,
+so the same window is classified once per exam. Only Jev answers are cached, so a Jev outage heals itself.
 
-The Jev client sits behind one interface, `Classifier.classify(signal) → Verdict`, so the
-exact API shape is isolated in one file (`server/tide_server/classify/jev.py`).
-Env: `JEV_API_URL`, `JEV_API_KEY`. With no key, the server uses **offline heuristics** and says
-so in the console header, so the demo never breaks.
+Measured with the real API:
+
+| Window | Jev label | p | Result |
+|---|---|---|---|
+| Chrome · `poe.com` "Fast AI Chat - Poe" | ai_assistant | 0.97 | auto-closed |
+| `notegpt.exe` "NoteGPT - AI Notes" | ai_assistant | 0.99 | auto-killed |
+| Edge · geeksforgeeks.org | web_lookup | 0.97 | high flag (review) |
+| VS Code `main.c` | allowed_tool | 1.00 | nothing |
+| Calculator | other | 0.99 | nothing |
+
+The Jev client lives in one file (`server/tide_server/classify/jev.py`). With no
+`OPENROUTER_API_KEY`, the server uses **offline heuristics** (keywords, confidence capped at 0.70,
+so they never auto-act) and says so in the console header. The demo never breaks.
 
 ### 5.3 Severity → seat colour
 | Severity | Examples | Seat tile |
@@ -295,8 +309,8 @@ A seat's colour = its worst **open** flag. When the teacher dismisses the flag, 
 - **Kill app:** `psutil` terminate → kill after 1 s.
 - **Block overlay:** full-screen topmost window, red, one line ("ChatGPT blocked — reported"),
   auto-dismisses after 4 s. For internet, it stays until the probe fails again.
-- Every action is recorded as an `action` row linked to its flag, so the teacher sees
-  "closed automatically at 10:42:07".
+- Every action is recorded on its flag (`action` + `result`), so the teacher sees
+  "Auto-closed" with the time.
 
 ---
 
@@ -309,22 +323,25 @@ First message must be `hello` with the seat token; otherwise the socket is close
 | `t` | Payload |
 |---|---|
 | `hello` | `token, agent_version, local_time` |
-| `heartbeat` | `state, fg_app` |
-| `preflight` | `internet, extensions[], denied_running[], inventory_count` |
-| `signal` | `kind, data, ts` (ambiguous, for the server pipeline) |
-| `flag` | `kind, severity, data, ts, action_taken` (from local rules) |
-| `evidence` | `flag_id, jpeg_b64` |
-| `snapshot` | `files: [{path, text, sha}]` (changed files only) |
+| `heartbeat` | `fg` (foreground process) |
+| `preflight` | `internet, extensions[], denied_closed[], inventory_count` |
+| `event` | `kind, data, ts` (allowed activity, timeline only) |
+| `signal` | `kind, data, ts` (unknown, for the server pipeline) |
+| `flag` | `ref, kind, severity, title, data, ts, action, result` (from local rules) |
+| `evidence` | `ref` or `flag_id`, `jpeg_b64` |
+| `snapshot` | `ts, files: [{path, text, sha}]` (changed files only; unchanged starter files never sent) |
 
 **Server → Agent**
 | `t` | Payload |
 |---|---|
-| `welcome` | `seat, policy, server_time, exam_state, ends_at?` |
+| `welcome` | `seat_no, roll, set, policy, server_time, exam_state, ends_at` |
 | `start` | `set, files: [{name, b64}], ends_at` |
 | `act` | `action: close_tab/kill/overlay, target, reason, flag_id` |
 | `time` | `ends_at` |
 | `notice` | `text` |
-| `end` | — (collect and submit now) |
+| `end` | `reason` (time / teacher): collect and submit now |
+
+A bad token closes the socket with code `4401`.
 
 **HTTP:** `POST /api/pair` (join code + roll + seat → token), `POST /api/submit` (zip,
 token-authenticated), plus the teacher REST API under `/api/teacher/*`. The console gets live
@@ -335,18 +352,19 @@ updates on `ws://<server>:8765/ws/console`.
 ## 7. Data model (SQLite)
 
 ```
-exam(id, title, duration_s, join_code, state[setup|lobby|live|ended], started_at, ends_at, policy_json)
-exam_file(id, exam_id, set['A'|'B'], name, blob)
-seat(id, exam_id, seat_no, roll, hostname, token_hash, set, state, last_seen, ends_at_override)
-event(id, seat_id, ts, kind, data_json)                -- everything, the timeline
-flag(id, seat_id, ts, kind, severity, source[rule|jev|heuristic|server],
-     label, confidence, data_json, screenshot_path, status[open|dismissed|confirmed],
-     reviewed_at)
-action(id, flag_id, ts, kind[close_tab|kill|overlay|warn|extend], result)
+exam(id, title, duration_s, join_code, state[lobby|live|ended], started_at, ends_at, policy_json)
+exam_file(id, exam_id, set_name['A'|'B'], name, data)
+seat(id, exam_id, seat_no, roll, hostname, token_hash, set_name,
+     state[lobby|ready|blocked|live|offline|submitted], resume_state, preflight_json,
+     last_seen, ends_at_override, fg_app, simulated)
+event(id, seat_id, ts, kind, data_json)                -- the timeline
+flag(id, seat_id, ts, kind, severity, title, source[rule|jev|heuristic|server],
+     label, confidence, data_json, action, screenshot, status[open|dismissed|confirmed],
+     reviewed_at, ref)
 snapshot(id, seat_id, ts, path, sha, text, line_count)
-submission(id, seat_id, ts, zip_path, auto[bool])
-verdict_cache(key, label, confidence, ts)
+submission(id, seat_id, ts, file_name, auto)
 ```
+The Jev verdict cache is in memory (one exam per server run).
 
 ---
 
@@ -399,17 +417,21 @@ verdict_cache(key, label, confidence, ts)
 
 ```
 Tide/
+├── common/           tide_common: protocol, policy (allow/deny lists), rules, fingerprints
 ├── agent/            Tide Agent (Python → tide-agent.exe)
-│   └── tide_agent/   watchers/, rules.py, enforcer.py, evidence.py, link.py, ui/ (pywebview HTML)
+│   └── tide_agent/   watchers.py, engine.py, enforcer.py, link.py, preflight.py, inventory.py,
+│                     win/ (real Windows calls), fake.py (simulated PC for dev), ui/ (pywebview)
 ├── server/           Tide Server (FastAPI)
-│   └── tide_server/  api/, ws/, classify/ (rules, jev, heuristics), decide.py, clock.py,
-│                     similarity.py, simulate.py (fake seats), db.py
+│   └── tide_server/  api/, classify/ (describe, heuristics, jev, pipeline), decide.py, ingest.py,
+│                     monitor.py, similarity.py, simulate.py (59 fake seats), discovery.py
 ├── console/          Teacher Console (React + Vite)
 ├── design/
 │   └── mock-ui.html  The UI reference: every screen, clickable
 └── docs/
     ├── ARCHITECTURE.md   (this file)
-    ├── DEMO.md           run the demo, the script, cross-question answers
+    ├── DEMO.md           the demo script and cross-question answers
+    ├── SETUP_TWO_PCS.md  demo setup on two new Windows PCs
+    ├── DEVELOPMENT.md    build and test everything on one machine
     ├── specs/            design spec: scope and decisions
     └── plans/            implementation plan
 ```

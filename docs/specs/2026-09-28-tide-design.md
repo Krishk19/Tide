@@ -1,7 +1,9 @@
 # Tide — Design Spec (Demo Build)
 
+*Tide = Test Integrity in Developer Environments.*
+
 Date: 2026-09-28 · Status: approved in brainstorming, pending build
-How it works: [../ARCHITECTURE.md](../ARCHITECTURE.md) · Demo: [../DEMO.md](../DEMO.md) · UI reference: [../../design/mock-ui.html](../../design/mock-ui.html)
+Plan: [../plans/2026-09-28-tide-demo-build.md](../plans/2026-09-28-tide-demo-build.md) · How it works: [../ARCHITECTURE.md](../ARCHITECTURE.md) · Demo: [../DEMO.md](../DEMO.md) · UI reference: [../../design/mock-ui.html](../../design/mock-ui.html)
 
 ## 1. Intent
 
@@ -21,7 +23,7 @@ stopped live) on a clean console, and the team can answer "what about…" questi
 | D3 | **Background agent watches the real desktop**, no kiosk | Principle 1 |
 | D4 | **Enforcement mode B:** auto-act on high-confidence hits, flag the rest | Stops the cheat live; humans still review |
 | D5 | **Questions released only through Tide**, after offline pre-flight, odd/even sets by seat number | Closes "download from Classroom first" |
-| D6 | **Jev classifier on the teacher server** for ambiguous signals; rules first; offline heuristics fallback | Catches unknown AI tools with a thresholdable confidence; demo never breaks |
+| D6 | **Jev classifier on the teacher server** (via OpenRouter Decisions API, `~typesafe/jev-latest`) for ambiguous signals; rules first; offline heuristics fallback | Catches unknown AI tools with a thresholdable confidence; demo never breaks |
 | D7 | **Stack:** Python agent (PyInstaller exe, pywebview UI) · FastAPI + SQLite server · React + Vite console. **No Electron** | OS APIs from Python; small binary; team knows Python/React |
 | D8 | **Server clock is authoritative**; agents get `ends_at` + offset | Timer sync, restart-safe |
 | D9 | **59 simulated seats** in demo mode | Makes one laptop look like a 60-seat lab |

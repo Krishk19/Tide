@@ -1,7 +1,7 @@
 # Tide — Demo Guide & Cross-Questions
 
-How to set up the demo, the exact script, and answers to the questions judges ask.
-Architecture details live in [ARCHITECTURE.md](ARCHITECTURE.md).
+The exact demo script, and answers to the questions judges ask.
+**Setting up the two laptops:** [SETUP_TWO_PCS.md](SETUP_TWO_PCS.md). **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -21,13 +21,13 @@ Architecture details live in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 2. Prep (5 minutes before)
 
-1. On T: `tide-server --demo` → opens the console, creates the "CN Lab Test" exam from
-   `demo/`, and adds **59 simulated seats** with realistic behaviour (a few amber, one red).
-2. On S: put `D:\old\dsa_lab5.cpp` on disk (the "old saved code" prop). Install the Copilot
+1. On T: `tide-server --demo` → opens the console, creates the "CN Lab Test 3" exam with
+   built-in Set A/B questions, and adds **59 simulated seats** (seat 19 red, 45 amber, 58–60 join late).
+2. On S: put `D:\old\dsa_lab5.cpp` (or `Documents\old\dsa_lab5.cpp`) on disk, the "old saved code" prop. Install the Copilot
    extension in VS Code if you want the pre-flight flag.
 3. On S: Chrome with ChatGPT bookmarked. Wi-Fi off.
-4. Set `JEV_API_KEY` on T. If Jev is unreachable the console header shows "Offline
-   heuristics" and everything still works.
+4. Put `OPENROUTER_API_KEY` in `.env.local` on T. The console header shows **Jev live**. Without it
+   the header shows "Offline heuristics" and everything except Jev auto-closing still works.
 
 ## 3. The script (~4 minutes)
 
@@ -44,6 +44,9 @@ Architecture details live in [ARCHITECTURE.md](ARCHITECTURE.md).
 | 8 | "The teacher sees the story, not noise." | Click seat 7 | Timeline, screenshots, code-growth chart with the paste spike |
 | 9 | "Submit." | Click **Submit** on S | Seat shows ✓. **Results** tab: submissions, similarity pairs, export CSV |
 | 10 | "In a real lab this is a Windows service students can't kill…" | Show the production slide | ARCHITECTURE §9 |
+
+**Why the AI sites don't load:** S is offline, which is the point, so Chrome shows its "No internet"
+page. Tide reads the address bar, so it catches the attempt anyway. Say: "even trying counts."
 
 **Recovery:** if a step misfires, open the **Simulate** menu in the console and trigger that
 event on seat 7. It goes through the same pipeline.
