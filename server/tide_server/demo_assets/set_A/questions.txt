@@ -1,0 +1,10 @@
+CN Lab Test 3 — Set A (odd seats)                                90 minutes
+
+Q1. Read N IPv4 addresses. For each, print its class (A, B, C, D or E)
+    and whether it is private.
+    Input:  3 / 10.1.2.3 / 172.20.0.1 / 8.8.8.8
+    Output: A private / B private / A public
+
+Q2. Open capture_A.txt. Count the ARP requests and print each sender IP.
+
+Write your code in main.c in this folder. Press Submit in the Tide bar when done.

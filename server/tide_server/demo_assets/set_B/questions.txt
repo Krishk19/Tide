@@ -1,0 +1,10 @@
+CN Lab Test 3 — Set B (even seats)                               90 minutes
+
+Q1. Read N MAC addresses. For each, print unicast or multicast, and
+    whether it is globally or locally administered.
+    Input:  2 / 00:1A:2B:3C:4D:5E / 01:00:5E:00:00:FB
+    Output: unicast global / multicast global
+
+Q2. Open capture_B.txt. Count the DNS queries and print each domain.
+
+Write your code in main.c in this folder. Press Submit in the Tide bar when done.
