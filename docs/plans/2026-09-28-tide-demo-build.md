@@ -5325,3 +5325,1154 @@ git add agent
 git commit -m "feat(agent): engine routes rules, enforces locally, handles server messages"
 ```
 
+### Task 18: Agent UI — headless and pywebview windows
+
+**Files:**
+- Create: `agent/tide_agent/ui/headless.py`, `agent/tide_agent/ui/webview_ui.py`, `agent/tide_agent/ui/web/style.css`, `agent/tide_agent/ui/web/index.html`, `agent/tide_agent/ui/web/pill.html`, `agent/tide_agent/ui/web/overlay.html`
+- Test: `agent/tests/test_ui.py`
+
+**Interfaces:**
+- Consumes: `UiPort`
+- Produces:
+  - `HeadlessUI(out=print)`: implements `UiPort` by printing one line per call (used by `--headless` and tests)
+  - `WebviewUI()`: implements `UiPort` with three windows (main 440×600, pill 460×60 top-centre always-on-top, overlay full-screen always-on-top hidden). `.bind(api)` exposes `join(code, roll, seat) -> {ok, error?}` and `submit() -> {ok}` to JS; `.run(func)` calls `webview.start(func)`.
+  - JS globals in the pages: `tide.showJoin(server, error)`, `tide.showPreflight(checks)`, `tide.done(n, at)`, `tide.error(text)` (index); `tide.start(seat, set, endsAtMs)`, `tide.setEnds(endsAtMs)`, `tide.notice(text)` (pill); `tide.block(title, persistent)` (overlay)
+
+Visuals follow `design/mock-ui.html` (student screens): the same tokens, `.agent` card, `.check`, `.pill`, `.block`.
+
+- [ ] **Step 1: Write the failing test**
+
+`agent/tests/test_ui.py`:
+```python
+from tide_agent.ui.headless import HeadlessUI
+
+
+def test_headless_prints_each_call():
+    lines = []
+    ui = HeadlessUI(out=lines.append)
+    ui.show_join("10.10.0.1", None)
+    ui.show_preflight([{"id": "internet", "label": "Offline", "detail": "", "state": "ok"}])
+    ui.block("ChatGPT — closed", False)
+    ui.done(3, "10:58")
+    assert lines == ["[join] server=10.10.0.1", "[preflight] ok:Offline", "[block] ChatGPT — closed",
+                     "[done] 3 files at 10:58"]
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd agent && pytest tests/test_ui.py -v`
+Expected: FAIL, `ModuleNotFoundError`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/ui/headless.py`:
+```python
+from typing import Callable
+
+
+class HeadlessUI:
+    def __init__(self, out: Callable[[str], None] = print) -> None:
+        self.out = out
+
+    def show_join(self, server, error=None): self.out(f"[join] server={server}" + (f" error={error}" if error else ""))
+    def show_preflight(self, checks): self.out("[preflight] " + " ".join(f"{c['state']}:{c['label']}" for c in checks))
+    def start(self, seat_no, set_name, ends_at_local, folder): self.out(f"[start] PC-{seat_no:02d} set {set_name} folder {folder}")
+    def set_ends_at(self, ends_at_local): self.out(f"[time] ends_at={ends_at_local:.0f}")
+    def notice(self, text): self.out(f"[notice] {text}")
+    def block(self, title, persistent=False): self.out(f"[block] {title}" + (" (until offline)" if persistent else ""))
+    def unblock(self): self.out("[unblock]")
+    def done(self, n_files, at): self.out(f"[done] {n_files} files at {at}")
+    def error(self, text): self.out(f"[error] {text}")
+    def quit(self): self.out("[quit]")
+```
+
+`agent/tide_agent/ui/webview_ui.py`:
+```python
+import json
+import threading
+from pathlib import Path
+
+import webview
+
+WEB = Path(__file__).parent / "web"
+
+
+class WebviewUI:
+    def __init__(self) -> None:
+        screen = webview.screens[0] if webview.screens else None
+        sw, sh = (screen.width, screen.height) if screen else (1920, 1080)
+        self._persistent = False
+        self.main = webview.create_window("Tide", str(WEB / "index.html"), width=440, height=600, resizable=False)
+        self.pill = webview.create_window("Tide timer", str(WEB / "pill.html"), width=460, height=60,
+                                          x=(sw - 460) // 2, y=10, frameless=True, on_top=True,
+                                          hidden=True, easy_drag=True, resizable=False)
+        self.overlay = webview.create_window("Tide", str(WEB / "overlay.html"), width=sw, height=sh, x=0, y=0,
+                                             frameless=True, on_top=True, hidden=True, resizable=False)
+
+    def bind(self, api) -> None:
+        self.main.expose(api.join)
+        self.pill.expose(api.submit)
+
+    def run(self, func) -> None:
+        webview.start(func)
+
+    @staticmethod
+    def _js(win, fn: str, *args) -> None:
+        win.evaluate_js(f"window.tide && tide.{fn}(...{json.dumps(list(args))})")
+
+    def show_join(self, server, error=None): self._js(self.main, "showJoin", server, error)
+    def show_preflight(self, checks): self._js(self.main, "showPreflight", checks)
+
+    def start(self, seat_no, set_name, ends_at_local, folder):
+        self.main.hide()
+        self.pill.show()
+        self._js(self.pill, "start", f"PC-{seat_no:02d}", f"Set {set_name}", ends_at_local * 1000)
+
+    def set_ends_at(self, ends_at_local): self._js(self.pill, "setEnds", ends_at_local * 1000)
+    def notice(self, text): self._js(self.pill, "notice", text)
+
+    def block(self, title, persistent=False):
+        self._persistent = persistent
+        self._js(self.overlay, "block", title, persistent)
+        self.overlay.show()
+        if not persistent:
+            threading.Timer(4.0, self._auto_hide).start()
+
+    def _auto_hide(self):
+        if not self._persistent:
+            self.overlay.hide()
+
+    def unblock(self):
+        self._persistent = False
+        self.overlay.hide()
+
+    def done(self, n_files, at):
+        self.pill.hide()
+        self.main.show()
+        self._js(self.main, "done", n_files, at)
+        threading.Timer(10.0, self.quit).start()
+
+    def error(self, text): self._js(self.main, "error", text)
+
+    def quit(self):
+        for w in (self.overlay, self.pill, self.main):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+```
+
+`agent/tide_agent/ui/web/style.css` (tokens and components copied from `design/mock-ui.html`):
+```css
+:root{--bg:#F5F6F8;--surface:#fff;--ink:#0F172A;--muted:#64748B;--line:#E6E8EC;--brand:#0B7A83;--brand-2:#E6F4F5;
+--ok:#16A34A;--ok-bg:#EAF7EE;--warn:#D97706;--warn-bg:#FDF3E3;--crit:#DC2626;--crit-bg:#FDECEC;
+--font:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Code",Consolas,monospace}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);background:var(--surface);font-size:14px}
+.body{padding:26px 28px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:22px;margin:0;letter-spacing:-.015em}
+.sub{color:var(--muted)}
+.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit}
+.input.code{font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;text-align:center}
+.two{display:grid;grid-template-columns:1fr 110px;gap:10px}
+.btn{border:0;background:var(--brand);color:#fff;padding:12px 22px;border-radius:10px;font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+.btn[disabled]{opacity:.5}
+.found{display:inline-flex;gap:8px;align-items:center;align-self:flex-start;background:var(--ok-bg);color:#15803D;font-size:12px;font-weight:600;padding:5px 10px;border-radius:99px}
+.found.no{background:var(--warn-bg);color:#B45309}
+.err{color:var(--crit);font-weight:500;min-height:1em}
+.check{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px}
+.check .ci{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;font-weight:700}
+.check.ok .ci{background:var(--ok-bg);color:var(--ok)}
+.check.warn{background:var(--warn-bg)}.check.warn .ci{background:#FBE3BF;color:var(--warn)}
+.check.fail{background:var(--crit-bg)}.check.fail .ci{background:#F9CFCF;color:var(--crit)}
+.check.run .ci{border:2px solid var(--line);border-top-color:var(--brand);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ct{font-weight:600}.cd{font-size:12px;color:var(--muted)}
+.waiting{text-align:center;padding:14px;border-radius:10px;background:var(--bg);color:var(--muted);font-weight:500}
+.done-ic{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;margin:20px auto 0;font-size:30px}
+.hidden{display:none!important}
+```
+
+`agent/tide_agent/ui/web/index.html`:
+```html
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body>
+<section id="join" class="body">
+  <h1>Join lab test</h1>
+  <span id="server" class="found no">Looking for teacher…</span>
+  <div><label class="lbl">Code</label><input id="code" class="input code" maxlength="6" autofocus></div>
+  <div class="two">
+    <div><label class="lbl">Roll no.</label><input id="roll" class="input" maxlength="20"></div>
+    <div><label class="lbl">Seat</label><input id="seat" class="input" type="number" min="1" max="200"></div>
+  </div>
+  <div id="err" class="err"></div>
+  <button id="go" class="btn">Join</button>
+</section>
+<section id="pre" class="body hidden">
+  <h1>Getting ready</h1><div id="checks"></div>
+  <div id="wait" class="waiting">Waiting for teacher to start</div>
+</section>
+<section id="fin" class="body hidden" style="text-align:center">
+  <div class="done-ic">✓</div><h1>Submitted</h1><div id="finsub" class="sub"></div>
+  <div class="sub" style="font-size:12px">You can leave. Tide closes in 10 s.</div>
+</section>
+<script>
+const $ = id => document.getElementById(id);
+const show = id => ["join","pre","fin"].forEach(s => $(s).classList.toggle("hidden", s !== id));
+const ICON = {ok:"✓", warn:"!", fail:"✕", run:""};
+window.tide = {
+  showJoin(server, error) {
+    show("join");
+    $("server").textContent = server ? `Teacher found · ${server}` : "Teacher not found yet";
+    $("server").classList.toggle("no", !server);
+    $("err").textContent = error || "";
+  },
+  showPreflight(checks) {
+    show("pre");
+    $("checks").innerHTML = "";
+    for (const c of checks) {
+      const row = document.createElement("div");
+      row.className = `check ${c.state}`;
+      row.innerHTML = `<div class="ci"></div><div><div class="ct"></div><div class="cd"></div></div>`;
+      row.querySelector(".ci").textContent = ICON[c.state] || "";
+      row.querySelector(".ct").textContent = c.label;
+      row.querySelector(".cd").textContent = c.detail;
+      $("checks").appendChild(row);
+    }
+    const blocked = checks.some(c => c.state === "fail");
+    $("wait").textContent = blocked ? "Fix the red item to continue" : "Waiting for teacher to start";
+  },
+  done(n, at) { show("fin"); $("finsub").textContent = `${n} files · ${at}`; },
+  error(text) { $("err").textContent = text; },
+};
+$("seat").value = (location.hash.match(/seat=(\d+)/) || [])[1] || "";
+$("go").onclick = async () => {
+  $("go").disabled = true; $("err").textContent = "";
+  const r = await window.pywebview.api.join($("code").value.trim(), $("roll").value.trim(), $("seat").value);
+  $("go").disabled = false;
+  if (!r.ok) $("err").textContent = r.error;
+};
+</script></body></html>
+```
+
+`agent/tide_agent/ui/web/pill.html`:
+```html
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body{background:transparent;display:flex;align-items:center;justify-content:center}
+.pill{display:flex;align-items:center;gap:14px;padding:7px 8px 7px 16px;border-radius:999px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;width:100%;height:100%}
+.live{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+.seat{font-weight:700}.set{color:var(--muted)}.sep{width:1px;height:18px;background:var(--line)}
+.time{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;flex:1}
+.time.low{color:var(--crit)}
+.sub{background:var(--brand);color:#fff;border:0;border-radius:999px;padding:7px 14px;font-weight:600;cursor:pointer}
+.note{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:var(--warn-bg);color:#92400E;font-weight:600;border-radius:999px;padding:0 16px;text-align:center}
+</style></head><body>
+<div class="pill pywebview-drag-region">
+  <span class="live"></span><span id="seat" class="seat"></span><span id="set" class="set"></span>
+  <span class="sep"></span><span id="time" class="time">--:--</span>
+  <button id="sub" class="sub">Submit</button>
+</div>
+<div id="note" class="note"></div>
+<script>
+let ends = 0;
+const pad = n => String(n).padStart(2, "0");
+function render() {
+  const s = Math.max(0, Math.round((ends - Date.now()) / 1000));
+  const el = document.getElementById("time");
+  el.textContent = `${Math.floor(s / 60)}:${pad(s % 60)}`;
+  el.classList.toggle("low", s < 300);
+}
+setInterval(render, 500);
+window.tide = {
+  start(seat, set, endsMs) { document.getElementById("seat").textContent = seat; document.getElementById("set").textContent = set; ends = endsMs; render(); },
+  setEnds(endsMs) { ends = endsMs; render(); },
+  notice(text) { const n = document.getElementById("note"); n.textContent = text; n.style.display = "flex"; setTimeout(() => n.style.display = "none", 6000); },
+};
+document.getElementById("sub").onclick = async () => {
+  const b = document.getElementById("sub");
+  if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Sure?"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "Submit"; }, 3000); return; }
+  b.disabled = true; b.textContent = "Submitting…";
+  await window.pywebview.api.submit();
+};
+</script></body></html>
+```
+
+`agent/tide_agent/ui/web/overlay.html`:
+```html
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#fff;text-align:center;background:#B91C1C}
+body.net{background:#0F172A}
+.shield{width:84px;height:84px;border-radius:24px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:40px}
+h3{margin:0;font-size:34px;letter-spacing:-.02em}p{margin:0;opacity:.85;font-size:16px}
+</style></head><body>
+<div class="shield">⛔</div><h3 id="title">Blocked</h3><p id="sub">Reported to your invigilator.</p>
+<script>
+window.tide = {
+  block(title, persistent) {
+    document.body.classList.toggle("net", persistent);
+    document.getElementById("title").textContent = persistent ? "Internet detected" : title;
+    document.getElementById("sub").textContent = persistent ? "Disconnect Wi-Fi / hotspot to continue." : "Reported to your invigilator.";
+  },
+};
+</script></body></html>
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd agent && pytest tests -v`
+Expected: all pass
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): headless and pywebview UI (join, pre-flight, timer pill, block overlay)"
+```
+
+### Task 19: Windows platform
+
+**Files:**
+- Create: `agent/tide_agent/urlhost.py`, `agent/tide_agent/win/__init__.py`, `windows.py`, `browser.py`, `procs.py`, `net.py`, `devices.py`, `input.py`, `capture.py`, `agent/scripts/win_smoke.py`
+- Test: `agent/tests/test_urlhost.py` (any OS), `agent/tests/test_win_smoke.py` (Windows only)
+
+**Interfaces:**
+- Produces: `host_from_value(address_bar_text) -> str` (pure); `WinPlatform()` implementing every `Platform` method
+
+Implementation notes:
+- UI Automation must be initialised per thread: wrap calls in `uiautomation.UIAutomationInitializerInThread()`.
+- `SetForegroundWindow` from a background process is refused unless the process "just sent input", so press and release Alt first.
+- UWP windows report `ApplicationFrameHost.exe`; the real process is a child window's PID.
+
+- [ ] **Step 1: Write the failing tests**
+
+`agent/tests/test_urlhost.py`:
+```python
+from tide_agent.urlhost import host_from_value
+
+
+def test_host_from_value():
+    assert host_from_value("chatgpt.com") == "chatgpt.com"
+    assert host_from_value("https://www.Poe.com/chat/x") == "www.poe.com"
+    assert host_from_value("") == ""
+    assert host_from_value("file:///C:/Exam/22BCS107/setA.pdf") == ""
+    assert host_from_value("edge://newtab") == ""
+    assert host_from_value("localhost:5173/x") == "localhost"
+```
+
+`agent/tests/test_win_smoke.py`:
+```python
+import sys
+
+import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
+
+
+def test_real_platform_calls():
+    from tide_agent.win import WinPlatform
+    p = WinPlatform()
+    assert p.processes()
+    assert any(a.up for a in p.adapters().values())
+    assert isinstance(p.internet(), bool)
+    assert isinstance(p.removable_drives(), set)
+    assert isinstance(p.clipboard_seq(), int)
+    shot = p.screenshot()
+    assert shot is None or shot[:2] == b"\xff\xd8"
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd agent && pytest tests/test_urlhost.py -v`
+Expected: FAIL, `ModuleNotFoundError`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/urlhost.py`:
+```python
+from urllib.parse import urlparse
+
+LOCAL_SCHEMES = ("file:", "edge:", "chrome:", "about:", "brave:", "opera:", "view-source:")
+
+
+def host_from_value(value: str) -> str:
+    v = (value or "").strip()
+    if not v or v.lower().startswith(LOCAL_SCHEMES):
+        return ""
+    if "://" not in v:
+        v = "http://" + v
+    return (urlparse(v).hostname or "").lower()
+```
+
+`agent/tide_agent/win/windows.py`:
+```python
+from functools import lru_cache
+
+import psutil
+import win32api
+import win32gui
+import win32process
+
+from tide_agent.platform import WindowInfo
+
+
+@lru_cache(maxsize=512)
+def pe_info(exe: str) -> tuple[str, str]:
+    try:
+        lang, cp = win32api.GetFileVersionInfo(exe, "\\VarFileInfo\\Translation")[0]
+        base = f"\\StringFileInfo\\{lang:04x}{cp:04x}\\"
+        desc = win32api.GetFileVersionInfo(exe, base + "FileDescription") or ""
+        orig = win32api.GetFileVersionInfo(exe, base + "OriginalFilename") or ""
+        return str(desc), str(orig)
+    except Exception:
+        return "", ""
+
+
+def _real_pid(hwnd: int, pid: int, name: str) -> int:
+    if name.lower() != "applicationframehost.exe":
+        return pid
+    found = []
+
+    def cb(child, _):
+        _, cpid = win32process.GetWindowThreadProcessId(child)
+        if cpid != pid:
+            found.append(cpid)
+    try:
+        win32gui.EnumChildWindows(hwnd, cb, None)
+    except Exception:
+        pass
+    return found[0] if found else pid
+
+
+def foreground() -> WindowInfo | None:
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return None
+    title = win32gui.GetWindowText(hwnd)
+    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    try:
+        name = psutil.Process(pid).name()
+        pid = _real_pid(hwnd, pid, name)
+        proc = psutil.Process(pid)
+        name, exe = proc.name(), proc.exe()
+    except psutil.Error:
+        name, exe = "", ""
+    desc, orig = pe_info(exe) if exe else ("", "")
+    return WindowInfo(hwnd, pid, name, exe, title, desc, orig)
+```
+
+`agent/tide_agent/win/browser.py`:
+```python
+import uiautomation as auto
+
+from tide_agent.urlhost import host_from_value
+
+ADDRESS_NAMES = ("Address and search bar", "Search or enter web address", "Search with Google or enter address",
+                 "Search or enter address", "Address field")
+
+
+def browser_host(hwnd: int, process: str) -> str | None:
+    try:
+        with auto.UIAutomationInitializerInThread():
+            root = auto.ControlFromHandle(hwnd)
+            edit = None
+            for name in ADDRESS_NAMES:
+                c = root.EditControl(searchDepth=14, Name=name)
+                if c.Exists(0, 0):
+                    edit = c
+                    break
+            if edit is None:
+                c = root.EditControl(searchDepth=14)
+                edit = c if c.Exists(0, 0) else None
+            if edit is None:
+                return None
+            return host_from_value(edit.GetValuePattern().Value)
+    except Exception:
+        return None
+```
+
+`agent/tide_agent/win/procs.py`:
+```python
+import psutil
+
+from tide_agent.platform import ProcInfo
+from tide_agent.win.windows import pe_info
+
+
+def processes() -> dict[int, ProcInfo]:
+    out = {}
+    for p in psutil.process_iter(["pid", "name", "exe"]):
+        exe = p.info.get("exe") or ""
+        desc, orig = pe_info(exe) if exe else ("", "")
+        out[p.info["pid"]] = ProcInfo(p.info["pid"], p.info.get("name") or "", exe, desc, orig)
+    return out
+
+
+def kill(pid: int) -> None:
+    try:
+        p = psutil.Process(pid)
+        p.terminate()
+        p.wait(1)
+    except psutil.TimeoutExpired:
+        p.kill()
+    except psutil.Error:
+        pass
+```
+
+`agent/tide_agent/win/net.py`:
+```python
+import ipaddress
+import re
+import socket
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+import httpx
+import psutil
+
+from tide_agent.platform import AdapterInfo, Peer
+
+_ssid_cache: tuple[float, str | None] = (0.0, None)
+_pool = ThreadPoolExecutor(max_workers=2)
+
+
+def _ssid() -> str | None:
+    global _ssid_cache
+    if time.monotonic() - _ssid_cache[0] < 5:
+        return _ssid_cache[1]
+    try:
+        out = subprocess.run(["netsh", "wlan", "show", "interfaces"], capture_output=True, text=True,
+                             timeout=3, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+        m = re.search(r"^\s*SSID\s*:\s*(.+)$", out, re.M)
+        ssid = m.group(1).strip() if m else None
+    except Exception:
+        ssid = None
+    _ssid_cache = (time.monotonic(), ssid)
+    return ssid
+
+
+def adapters() -> dict[str, AdapterInfo]:
+    out = {}
+    for name, st in psutil.net_if_stats().items():
+        if "loopback" in name.lower():
+            continue
+        wifi = any(k in name.lower() for k in ("wi-fi", "wifi", "wireless", "wlan"))
+        out[name] = AdapterInfo(name, st.isup, wifi, _ssid() if wifi and st.isup else None)
+    return out
+
+
+def _http_probe() -> bool:
+    try:
+        r = httpx.get("http://www.msftconnecttest.com/connecttest.txt", timeout=1.5)
+        return r.text.strip() == "Microsoft Connect Test"
+    except Exception:
+        return False
+
+
+def _tcp_probe() -> bool:
+    try:
+        socket.create_connection(("1.1.1.1", 443), timeout=1.5).close()
+        return True
+    except OSError:
+        return False
+
+
+def internet() -> bool:
+    futures = [_pool.submit(_http_probe), _pool.submit(_tcp_probe)]
+    return any(f.result() for f in futures)
+
+
+def lan_peers(server_ip: str) -> list[Peer]:
+    peers = []
+    for c in psutil.net_connections("inet"):
+        if c.status != psutil.CONN_ESTABLISHED or not c.raddr:
+            continue
+        ip = c.raddr.ip
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if not addr.is_private or addr.is_loopback or ip == server_ip:
+            continue
+        try:
+            name = psutil.Process(c.pid).name() if c.pid else ""
+        except psutil.Error:
+            name = ""
+        peers.append(Peer(ip, c.raddr.port, name))
+    return peers
+```
+
+`agent/tide_agent/win/devices.py`:
+```python
+import time
+
+import psutil
+import win32clipboard
+import win32con
+
+
+def removable_drives() -> set[str]:
+    return {p.mountpoint for p in psutil.disk_partitions(all=False) if "removable" in p.opts}
+
+
+def clipboard_seq() -> int:
+    return win32clipboard.GetClipboardSequenceNumber()
+
+
+def clipboard_text() -> str | None:
+    for _ in range(3):
+        try:
+            win32clipboard.OpenClipboard()
+        except Exception:
+            time.sleep(0.05)
+            continue
+        try:
+            if win32clipboard.IsClipboardFormatAvailable(win32con.CF_UNICODETEXT):
+                return win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+            return None
+        finally:
+            win32clipboard.CloseClipboard()
+    return None
+```
+
+`agent/tide_agent/win/input.py`:
+```python
+import time
+
+import win32api
+import win32con
+import win32gui
+
+
+def close_tab(hwnd: int) -> None:
+    win32api.keybd_event(win32con.VK_MENU, 0, 0, 0)                     # unlock SetForegroundWindow
+    win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+    try:
+        win32gui.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+    time.sleep(0.05)
+    win32api.keybd_event(win32con.VK_CONTROL, 0, 0, 0)
+    win32api.keybd_event(ord("W"), 0, 0, 0)
+    win32api.keybd_event(ord("W"), 0, win32con.KEYEVENTF_KEYUP, 0)
+    win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+```
+
+`agent/tide_agent/win/capture.py`:
+```python
+import io
+
+import mss
+from PIL import Image
+
+
+def screenshot(max_width: int = 1280) -> bytes | None:
+    try:
+        with mss.mss() as sct:
+            raw = sct.grab(sct.monitors[1])
+        img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+        img.thumbnail((max_width, max_width))
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=60)
+        return buf.getvalue()
+    except Exception:
+        return None
+```
+
+`agent/tide_agent/win/__init__.py`:
+```python
+from tide_agent.win import browser, capture, devices, input, net, procs, windows
+
+
+class WinPlatform:
+    foreground = staticmethod(windows.foreground)
+    browser_host = staticmethod(browser.browser_host)
+    processes = staticmethod(procs.processes)
+    kill = staticmethod(procs.kill)
+    adapters = staticmethod(net.adapters)
+    internet = staticmethod(net.internet)
+    lan_peers = staticmethod(net.lan_peers)
+    removable_drives = staticmethod(devices.removable_drives)
+    clipboard_seq = staticmethod(devices.clipboard_seq)
+    clipboard_text = staticmethod(devices.clipboard_text)
+    close_tab = staticmethod(input.close_tab)
+    screenshot = staticmethod(capture.screenshot)
+```
+
+`agent/scripts/win_smoke.py`:
+```python
+"""Run on a Windows PC: python agent/scripts/win_smoke.py  (switch windows while it runs)."""
+import time
+
+from tide_agent.win import WinPlatform
+
+p = WinPlatform()
+print("processes:", len(p.processes()))
+print("adapters:", p.adapters())
+print("internet:", p.internet())
+print("usb:", p.removable_drives(), "clipboard seq:", p.clipboard_seq())
+shot = p.screenshot()
+print("screenshot bytes:", len(shot or b""))
+for _ in range(20):
+    w = p.foreground()
+    host = p.browser_host(w.hwnd, w.process) if w else None
+    print(f"{w.process if w else None!s:24} {host!s:22} {w.title[:60] if w else ''}")
+    time.sleep(1)
+```
+
+- [ ] **Step 4: Run tests**
+
+Run: `cd agent && pytest tests -v`
+Expected: all pass (the Windows smoke test is skipped off Windows).
+
+- [ ] **Step 5: Manual verification on Windows**
+
+Run: `python agent/scripts/win_smoke.py`, then switch to Chrome on `chatgpt.com`, Edge with a local PDF, VS Code, and File Explorer.
+Expected: Chrome prints host `chatgpt.com`; the Edge PDF prints host `""`; VS Code prints `Code.exe`; the screenshot size is > 20000 bytes; `internet: False` with the LAN cable only and `True` on Wi-Fi.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): Windows platform (windows, browser URL, processes, network, devices, input, capture)"
+```
+
+### Task 20: Fake PC, app wiring, CLI, .exe build
+
+**Files:**
+- Create: `agent/tide_agent/fake.py`, `agent/tide_agent/main.py`, `agent/tide_agent/__main__.py`, `agent/tide-agent.spec`
+- Test: `agent/tests/test_fake_e2e.py`
+
+**Interfaces:**
+- Consumes: everything above; the server from Phase 2 (in the test, via uvicorn in a thread)
+- Produces:
+  - `FakePlatform` (in `tide_agent/fake.py`, a scripted student PC) with `command(line) -> str`; commands: `code`, `ai`, `poe`, `app`, `wifi`, `wifi off`, `old`, `paste`, `usb`, `clip`, `help`
+  - `AgentConfig(server, exam_root, ext_dir, state_dir, roots, code, roll, seat)`, `AgentApp(platform, ui, cfg)` with `async boot()`, `async join(code, roll, seat_no) -> dict`, `join_from_ui`, `submit_from_ui`, `async run_forever()`
+  - CLI: `tide-agent [--server HOST[:PORT]] [--fake] [--headless --code C --roll R --seat N] [--exam-root DIR]`
+
+- [ ] **Step 1: Write the failing end-to-end test**
+
+`agent/tests/test_fake_e2e.py` (spins up the real server in-process):
+```python
+import asyncio
+import socket
+import threading
+import time
+
+import httpx
+import uvicorn
+
+from tide_agent.fake import FakePlatform
+from tide_agent.main import AgentApp, AgentConfig
+from tide_agent.ui.headless import HeadlessUI
+
+
+def free_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+async def test_fake_student_end_to_end(tmp_path):
+    from tide_server.app import create_app
+    from tide_server.config import Settings
+    port = free_port()
+    settings = Settings(_env_file=None, data_dir=tmp_path / "srv", openrouter_api_key="", demo=True,
+                        background_tasks=False, console_dir=tmp_path / "none", port=port)
+    server = uvicorn.Server(uvicorn.Config(create_app(settings), host="127.0.0.1", port=port, log_level="warning"))
+    threading.Thread(target=server.run, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    async with httpx.AsyncClient(base_url=base) as http:
+        for _ in range(50):
+            try:
+                tok = (await http.post("/api/teacher/login", json={"pin": "2468"})).json()["token"]
+                break
+            except httpx.HTTPError:
+                await asyncio.sleep(0.1)
+        H = {"Authorization": f"Bearer {tok}"}
+        code = (await http.get("/api/teacher/exam", headers=H)).json()["exam"]["join_code"]
+
+        lines = []
+        fake = FakePlatform(tmp_path / "home")
+        cfg = AgentConfig(server=f"127.0.0.1:{port}", exam_root=tmp_path / "Exam", ext_dir=fake.ext_dir,
+                          state_dir=tmp_path / "state", roots=[fake.old_dir])
+        app = AgentApp(fake, HeadlessUI(out=lines.append), cfg)
+        await app.boot()
+        assert (await app.join(code, "22bcs107", 7))["ok"]
+        for _ in range(100):
+            if any(l.startswith("[preflight] ok:Offline") for l in lines):
+                break
+            await asyncio.sleep(0.05)
+        await http.post("/api/teacher/start", headers=H)
+        for _ in range(100):
+            if any(l.startswith("[start]") for l in lines):
+                break
+            await asyncio.sleep(0.05)
+        assert (tmp_path / "Exam" / "22BCS107" / "questions.txt").exists()
+
+        fake.command("ai")
+        await asyncio.sleep(1.2)
+        assert any("ChatGPT — closed" in l for l in lines)
+        seats = (await http.get("/api/teacher/results", headers=H)).json()["rows"]
+        me = next(r for r in seats if r["seat_no"] == 7)
+        assert any(f["title"] == "ChatGPT — closed" for f in me["flags"])
+
+        await app.engine.submit(auto=False)
+        assert any(l.startswith("[done]") for l in lines)
+    server.should_exit = True
+    time.sleep(0.2)
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd agent && pytest tests/test_fake_e2e.py -v`
+Expected: FAIL, `ModuleNotFoundError: No module named 'tide_agent.fake'`
+
+- [ ] **Step 3: Implement**
+
+`agent/tide_agent/fake.py`:
+```python
+"""A pretend student PC for dev on any OS. Type commands in the terminal to act out cheats."""
+import io
+import sys
+import threading
+from pathlib import Path
+
+from .platform import AdapterInfo, Peer, ProcInfo, WindowInfo
+
+OLD_CODE = "\n".join(["#include <stdio.h>", "#include <string.h>", "int is_private(int a, int b) {",
+                      "    if (a == 10) return 1;", "    if (a == 172 && b >= 16 && b <= 31) return 1;",
+                      "    if (a == 192 && b == 168) return 1;", "    return 0;", "}",
+                      "char cls(int a) {", "    if (a < 128) return 'A';", "    if (a < 192) return 'B';",
+                      "    if (a < 224) return 'C';", "    if (a < 240) return 'D';", "    return 'E';", "}",
+                      "int main(void) {", "    int n, a, b, c, d;", '    scanf("%d", &n);',
+                      "    while (n--) {", '        scanf("%d.%d.%d.%d", &a, &b, &c, &d);',
+                      '        printf("%c %s\\n", cls(a), is_private(a, b) ? "private" : "public");',
+                      "    }", "    return 0;", "}"])
+
+HELP = "commands: code | ai | poe | app | wifi | wifi off | old | paste | usb | clip | help"
+
+
+class FakePlatform:
+    def __init__(self, home: Path, exam_root: Path | None = None, roll: str = "22BCS107") -> None:
+        self.home = home
+        self.old_dir = home / "old"
+        self.old_dir.mkdir(parents=True, exist_ok=True)
+        (self.old_dir / "dsa_lab5.cpp").write_text(OLD_CODE)
+        self.ext_dir = home / ".vscode" / "extensions"
+        (self.ext_dir / "github.copilot-1.250.0").mkdir(parents=True, exist_ok=True)
+        self.exam_root, self.roll = exam_root, roll
+        self._lock = threading.Lock()
+        self.code_window()
+        self.host: str | None = None
+        self.procs = {1: ProcInfo(1, "explorer.exe"), 10: ProcInfo(10, "Code.exe")}
+        self.wifi_on = False
+        self.drives: set[str] = set()
+        self.clip_seq, self.clip = 1, None
+        self.log: list[str] = []
+
+    # --- scripted actions -------------------------------------------------
+    def code_window(self, title: str | None = None) -> None:
+        self.window = WindowInfo(100, 10, "Code.exe", "C:/VS Code/Code.exe",
+                                 title or f"main.c - {getattr(self, 'roll', '22BCS107')} - Visual Studio Code",
+                                 "Visual Studio Code", "Code.exe")
+        self.host = None
+
+    def command(self, line: str) -> str:
+        cmd = line.strip().lower()
+        with self._lock:
+            if cmd == "code":
+                self.code_window()
+            elif cmd == "ai":
+                self.window, self.host = WindowInfo(200, 20, "chrome.exe", "", "ChatGPT", "Google Chrome"), "chatgpt.com"
+                self.procs[20] = ProcInfo(20, "chrome.exe")
+            elif cmd == "poe":
+                self.window, self.host = WindowInfo(201, 20, "chrome.exe", "", "Fast AI Chat - Poe", "Google Chrome"), "poe.com"
+                self.procs[20] = ProcInfo(20, "chrome.exe")
+            elif cmd == "app":
+                self.window = WindowInfo(300, 30, "notegpt.exe", "C:/Users/s/NoteGPT/notegpt.exe",
+                                         "NoteGPT - AI Notes & Answers", "NoteGPT")
+                self.procs[30] = ProcInfo(30, "notegpt.exe")
+            elif cmd == "wifi":
+                self.wifi_on = True
+            elif cmd == "wifi off":
+                self.wifi_on = False
+            elif cmd == "old":
+                self.code_window("dsa_lab5.cpp - old - Visual Studio Code")
+            elif cmd == "paste":
+                if self.exam_root:
+                    (self.exam_root / self.roll / "main.c").write_text(OLD_CODE.replace("cls", "klass"))
+            elif cmd == "usb":
+                self.drives = {"E:\\"}
+            elif cmd == "clip":
+                self.clip_seq, self.clip = self.clip_seq + 1, OLD_CODE
+            else:
+                return HELP
+        return f"ok: {cmd}"
+
+    def read_stdin_forever(self) -> None:
+        def loop():
+            print(HELP, flush=True)
+            for line in sys.stdin:
+                print(self.command(line), flush=True)
+        threading.Thread(target=loop, daemon=True).start()
+
+    # --- Platform -----------------------------------------------------------
+    def foreground(self): return self.window
+    def browser_host(self, hwnd, process): return self.host
+    def processes(self): return dict(self.procs)
+
+    def kill(self, pid):
+        with self._lock:
+            self.procs.pop(pid, None)
+            self.log.append(f"kill {pid}")
+            if self.window.pid == pid:
+                self.code_window()
+
+    def adapters(self):
+        return {"Ethernet": AdapterInfo("Ethernet", True),
+                "Wi-Fi": AdapterInfo("Wi-Fi", self.wifi_on, True, "Redmi Note" if self.wifi_on else None)}
+
+    def internet(self): return self.wifi_on
+    def lan_peers(self, server_ip): return []
+    def removable_drives(self): return set(self.drives)
+    def clipboard_seq(self): return self.clip_seq
+    def clipboard_text(self): return self.clip
+
+    def close_tab(self, hwnd):
+        with self._lock:
+            self.log.append(f"close_tab {hwnd}")
+            self.code_window()
+
+    def screenshot(self):
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:
+            return None
+        img = Image.new("RGB", (640, 360), "white")
+        d = ImageDraw.Draw(img)
+        d.rectangle([0, 0, 640, 28], fill="#DEE1E6")
+        d.text((12, 8), self.host or self.window.title, fill="#333")
+        d.text((220, 170), self.window.title, fill="#111")
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=60)
+        return buf.getvalue()
+```
+
+`agent/tide_agent/main.py`:
+```python
+import asyncio
+import os
+import socket
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .discovery import discover, parse_server
+from .engine import Engine
+from .exam_folder import ExamFolder
+from .inventory import default_roots
+from .link import Link
+from .outbox import Outbox
+from .pairing import PairError, pair, submit
+from .platform import Platform
+from .preflight import preflight_checks, preflight_message, run_preflight, running_checks
+
+
+@dataclass
+class AgentConfig:
+    server: str | None
+    exam_root: Path
+    ext_dir: Path
+    state_dir: Path
+    roots: list[Path] = field(default_factory=list)
+    code: str | None = None
+    roll: str | None = None
+    seat: int | None = None
+
+    @classmethod
+    def from_args(cls, args, fake=None) -> "AgentConfig":
+        default_root = Path("C:/Exam") if sys.platform == "win32" else Path.home() / "TideExam"
+        exam_root = args.exam_root or Path(os.environ.get("TIDE_EXAM_ROOT", default_root))
+        state = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Tide"
+        return cls(server=args.server or os.environ.get("TIDE_SERVER"), exam_root=exam_root,
+                   ext_dir=fake.ext_dir if fake else Path.home() / ".vscode" / "extensions",
+                   state_dir=state, roots=[fake.old_dir] if fake else default_roots(),
+                   code=args.code, roll=args.roll, seat=args.seat)
+
+
+class AgentApp:
+    def __init__(self, platform: Platform, ui, cfg: AgentConfig) -> None:
+        self.p, self.ui, self.cfg = platform, ui, cfg
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self.server: tuple[str, int] | None = None
+        self.engine: Engine | None = None
+        self.link: Link | None = None
+        self._tasks: list[asyncio.Task] = []
+
+    async def boot(self) -> None:
+        self.loop = asyncio.get_running_loop()
+        self.server = parse_server(self.cfg.server) if self.cfg.server else await asyncio.to_thread(discover)
+        self.ui.show_join(self.server[0] if self.server else None)
+
+    async def join(self, code: str, roll: str, seat_no: int) -> dict:
+        if self.engine is not None:
+            return {"ok": True}
+        if not self.server:
+            self.server = await asyncio.to_thread(discover)
+            if not self.server:
+                return {"ok": False, "error": "Teacher not found. Check the LAN cable."}
+        host, port = self.server
+        base = f"http://{host}:{port}"
+        try:
+            r = await pair(base, code, roll, int(seat_no), socket.gethostname())
+        except (PairError, ValueError) as e:
+            return {"ok": False, "error": str(e)}
+        folder = ExamFolder(self.cfg.exam_root / r.roll)
+        if hasattr(self.p, "exam_root"):
+            self.p.exam_root, self.p.roll = self.cfg.exam_root, r.roll
+
+        async def send(m):
+            return await self.link.send(m)
+
+        async def submitter(data, auto):
+            await submit(base, r.token, data, auto)
+
+        self.engine = Engine(self.p, self.ui, send, folder, submitter, self.cfg.ext_dir, server_ip=host)
+        self.engine.roll = r.roll
+        self.link = Link(f"ws://{host}:{port}/ws/agent", r.token, self.engine.on_server,
+                         Outbox(self.cfg.state_dir / f"outbox-{r.roll}.jsonl"))
+        self.ui.show_preflight(running_checks())
+        self._tasks += [asyncio.create_task(self.link.run()), asyncio.create_task(self._preflight_loop()),
+                        asyncio.create_task(self.engine.run())]
+        return {"ok": True}
+
+    async def _preflight_loop(self) -> None:
+        await self.link.connected.wait()
+        inventory = None
+        while not self.engine.live:
+            res = await asyncio.to_thread(run_preflight, self.p, self.cfg.ext_dir, self.cfg.roots,
+                                          self.cfg.exam_root, inventory)
+            inventory = self.engine.inventory = res.inventory
+            self.engine.ext.set_baseline(res.extensions)
+            self.ui.show_preflight(preflight_checks(res))
+            await self.link.send(preflight_message(res))
+            if not res.internet:
+                return
+            await asyncio.sleep(5)
+
+    # called from the UI thread
+    def join_from_ui(self, code, roll, seat) -> dict:
+        return asyncio.run_coroutine_threadsafe(self.join(code, roll, seat), self.loop).result(timeout=20)
+
+    def submit_from_ui(self) -> dict:
+        asyncio.run_coroutine_threadsafe(self.engine.submit(auto=False), self.loop).result(timeout=60)
+        return {"ok": True}
+
+    async def run_forever(self) -> None:
+        await self.boot()
+        if self.cfg.code and self.cfg.roll and self.cfg.seat:
+            result = await self.join(self.cfg.code, self.cfg.roll, self.cfg.seat)
+            if not result["ok"]:
+                self.ui.error(result["error"])
+        while self.engine is None or not self.engine.done:
+            await asyncio.sleep(0.5)
+        await asyncio.sleep(10)
+        self.ui.quit()
+```
+
+`agent/tide_agent/__main__.py`:
+```python
+import argparse
+import asyncio
+import sys
+from pathlib import Path
+
+
+class _Api:
+    def __init__(self, app):
+        self.app = app
+
+    def join(self, code, roll, seat):
+        return self.app.join_from_ui(code, roll, seat)
+
+    def submit(self):
+        return self.app.submit_from_ui()
+
+
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser(prog="tide-agent", description="Tide student agent")
+    ap.add_argument("--server", help="teacher HOST[:PORT] (skips LAN discovery)")
+    ap.add_argument("--fake", action="store_true", help="simulated PC for dev on any OS; type commands here")
+    ap.add_argument("--headless", action="store_true", help="no windows; print UI events")
+    ap.add_argument("--code")
+    ap.add_argument("--roll")
+    ap.add_argument("--seat", type=int)
+    ap.add_argument("--exam-root", type=Path)
+    args = ap.parse_args(argv)
+
+    from .main import AgentApp, AgentConfig
+    if args.fake:
+        from .fake import FakePlatform
+        platform = FakePlatform(Path.home() / "TideFakePC")
+        platform.read_stdin_forever()
+    elif sys.platform == "win32":
+        from .win import WinPlatform
+        platform = WinPlatform()
+    else:
+        sys.exit("The Tide agent runs on Windows. Use --fake to simulate a student PC.")
+    cfg = AgentConfig.from_args(args, fake=platform if args.fake else None)
+
+    if args.headless:
+        from .ui.headless import HeadlessUI
+        asyncio.run(AgentApp(platform, HeadlessUI(), cfg).run_forever())
+        return
+    from .ui.webview_ui import WebviewUI
+    ui = WebviewUI()
+    app = AgentApp(platform, ui, cfg)
+    ui.bind(_Api(app))
+    ui.run(lambda: asyncio.run(app.run_forever()))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+`agent/tide-agent.spec` (PyInstaller, build on Windows):
+```python
+# pyinstaller agent/tide-agent.spec  ->  dist/tide-agent.exe
+a = Analysis(["tide_agent/__main__.py"], pathex=["."],
+             datas=[("tide_agent/ui/web", "tide_agent/ui/web")],
+             hiddenimports=["tide_agent.win", "uiautomation", "webview.platforms.edgechromium"])
+pyz = PYZ(a.pure)
+exe = EXE(pyz, a.scripts, a.binaries, a.datas, name="tide-agent", console=False, onefile=True,
+          icon="../design/tide.ico")
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `cd agent && pytest tests -v`
+Expected: all pass, including `test_fake_student_end_to_end` (~3 s).
+
+- [ ] **Step 5: Manual run in fake mode (any OS)**
+
+Terminal 1: `tide-server --demo`. Terminal 2: `tide-agent --fake --server 127.0.0.1`.
+Join with the code from the console, roll `22BCS107`, seat `7`. Press **Start** in the console, then type `ai`, `poe`, `wifi`, `wifi off`, `old`, `paste`, one per line, in terminal 2.
+Expected: each one appears on seat 7 in the console within ~2 s (`poe` shows "Jev 0.9x" when `OPENROUTER_API_KEY` is set).
+
+- [ ] **Step 6: Build the .exe (Windows)**
+
+Run: `cd agent && pyinstaller tide-agent.spec`
+Expected: `agent/dist/tide-agent.exe` exists and opens the Join window on double-click.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add agent
+git commit -m "feat(agent): fake PC mode, app wiring, CLI, PyInstaller spec"
+```
+
+---
