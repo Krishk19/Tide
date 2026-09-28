@@ -11,6 +11,9 @@ How it works: [ARCHITECTURE.md](ARCHITECTURE.md). Build order and code: [plans/2
 
 ## 2. Setup
 
+On Windows you can also just double-click `TEACHER - 1 Setup (once).bat` / `STUDENT - 1 Setup (once).bat`
+(see `START HERE.txt`). The manual equivalent:
+
 ```bash
 git clone <repo> Tide && cd Tide
 python3.12 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
@@ -34,10 +37,14 @@ Windows-only smoke tests (`agent/tests/test_win_smoke.py`) are skipped on other 
 Three terminals from the repo root, venv active:
 
 ```bash
-# 1  server + 59 simulated seats (serves console/dist if built)
-tide-server --demo
+# 1  server (serves the committed console/dist). Flags:
+#      --demo   dev shortcut: preload a sample exam so you can skip Setup
+#      --mock   fill the room with 59 simulated students when an exam exists
+#      --fresh  wipe old exams and flags first
+tide-server --demo --fresh
 
-# 2  console with hot reload (or run `npm run build` once and use http://localhost:8765)
+# 2  only if you're editing the console: hot reload on :5173
+#    (after changes, run `npm run build` and commit console/dist — the teacher PC uses it)
 cd console && npm run dev                # http://localhost:5173, PIN 2468
 
 # 3  a fake student PC that you drive by typing
@@ -65,8 +72,10 @@ It prints every UI event (`[block] ChatGPT — closed`, …) instead of showing 
 
 ## 5. End to end on one Windows PC (real agent)
 
+Easiest: double-click `TEACHER - 2 Start.bat`, create a test, then double-click
+`STUDENT - 2 Start.bat` and join. Or from a terminal:
 ```powershell
-tide-server --demo
+tide-server --demo --fresh
 tide-agent --server 127.0.0.1
 ```
 Then really do the cheats: open chatgpt.com in Chrome (it loads, then closes), open `poe.com`,

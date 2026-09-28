@@ -64,15 +64,26 @@ Full details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | [docs/plans/](docs/plans/2026-09-28-tide-demo-build.md) | Step-by-step implementation plan (25 tasks, test-first) |
 | [design/mock-ui.html](design/mock-ui.html) | Clickable UI reference for every screen (open in a browser) |
 
-## Quick start (one machine)
+## How to run it (Windows)
 
+Install **Python 3.12** (tick "Add python.exe to PATH"), put both PCs on the same Wi-Fi, then
+double-click in the Tide folder:
+
+| | First time only | Every time |
+|---|---|---|
+| **Teacher PC** | `TEACHER - 1 Setup (once).bat` (asks for your OpenRouter key) | `TEACHER - 2 Start.bat` → console opens (PIN 2468) → create the test, attach your PDF → share the join code → **Start** |
+| **Student PC** | `STUDENT - 1 Setup (once).bat` | `STUDENT - 2 Start.bat` → type the join code, roll, seat → **Join** |
+
+For a full-looking lab, start the teacher with `TEACHER - 2 Start (mock 60-seat room).bat`
+(adds 59 simulated students). Details: [START HERE.txt](START%20HERE.txt) ·
+[docs/SETUP_TWO_PCS.md](docs/SETUP_TWO_PCS.md).
+
+**Developers (any OS):** a fake student PC you drive by typing — see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e common -e "server[dev]" -e "agent[dev]"
-(cd console && npm install && npm run build)
-cp .env.example .env.local        # add OPENROUTER_API_KEY (optional; without it Tide uses heuristics)
-tide-server --demo                # console at http://localhost:8765, PIN 2468
-tide-agent --fake --server 127.0.0.1   # a simulated student PC; type `ai`, `poe`, `wifi`, `old`…
+tide-server --demo --fresh               # console at http://localhost:8765, PIN 2468
+tide-agent --fake --server 127.0.0.1     # type `ai`, `poe`, `app`, `old`, `paste`…
 ```
 
 ## Stack
@@ -83,11 +94,12 @@ React + Vite + TypeScript · Jev via OpenRouter Decisions API.
 ## Status
 
 Built and verified in this repo, following `docs/plans/2026-09-28-tide-demo-build.md` end to end:
-78 common+server tests, 30 agent tests (1 Windows-only test skipped off Windows), and 6 console
+80 common+server tests, 30 agent tests (1 Windows-only test skipped off Windows), and 6 console
 tests all pass, the console type-checks and builds, and a single-device rehearsal (fake student PC
 against the real server with live Jev, internet allowed) caught every scripted cheat correctly. Remaining before a
-real two-laptop demo: Task 19's manual verification on real Windows hardware, and the full
-`docs/SETUP_TWO_PCS.md` rehearsal.
+real two-laptop demo: running the double-click setup/start files and the Windows-only agent code
+(address bar, closing tabs, screenshots) on real Windows PCs — they were written on a Mac and
+haven't been run on Windows yet — and one full rehearsal with `docs/SETUP_TWO_PCS.md`.
 
 ## License
 

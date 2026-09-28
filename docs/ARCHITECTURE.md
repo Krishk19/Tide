@@ -6,7 +6,7 @@
 > and answer a judge's "but what if the student…" question.
 
 **Status: built.** Everything described here is implemented on branch `rebuild`
-(`docs/plans/2026-09-28-tide-demo-build.md`, all 25 tasks) and verified with 114 passing tests plus a
+(`docs/plans/2026-09-28-tide-demo-build.md`, all 25 tasks) and verified with 116 passing tests plus a
 single-device rehearsal against the real Jev API. Open items: real-Windows verification of the
 address-bar/close-tab/screenshot code (fake platform covers the logic, not the OS calls), and the
 two-laptop dress rehearsal. See `docs/specs/2026-09-28-tide-design.md` §5 for the exact checklist.
@@ -407,7 +407,8 @@ The Jev verdict cache is in memory (one exam per server run).
 
 | Area | Demo (built) | Production (pitched) |
 |---|---|---|
-| Seats | 1 real laptop + **59 simulated seats** so the grid looks like a real lab | 60 real PCs |
+| Seats | The real laptop(s) only; optional **mock room** adds 59 simulated seats so the grid looks like a full lab | 60 real PCs |
+| Starting it | Double-click `TEACHER - 2 Start.bat` / `STUDENT - 2 Start.bat` (firewall opened automatically, first run only) | Service starts with Windows |
 | Agent install | Run `tide-agent.exe` | MSI via Group Policy / lab image, Windows service + session helper |
 | Seat number | Typed | From hostname |
 | Network | Both laptops on the same Wi-Fi; internet **allowed · monitored** | Lab network; per exam, *allowed · monitored* or *blocked* (optionally with Windows Firewall rules pushed by the service) |
@@ -446,7 +447,7 @@ Tide/
 │                     win/ (real Windows calls), fake.py (simulated PC for dev), ui/ (pywebview)
 ├── server/           Tide Server (FastAPI)
 │   └── tide_server/  api/, classify/ (describe, heuristics, jev, pipeline), decide.py, ingest.py,
-│                     monitor.py, similarity.py, simulate.py (59 fake seats), discovery.py
+│                     monitor.py, similarity.py, simulate.py (optional mock room), discovery.py
 ├── console/          Teacher Console (React + Vite)
 ├── design/
 │   └── mock-ui.html  The UI reference: every screen, clickable

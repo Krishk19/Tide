@@ -17,40 +17,41 @@ mention it in the pitch, don't demo it.)
 
 | Laptop | Role | Network |
 |---|---|---|
-| **T** (teacher) | Tide Server + Console on a projector | Same Wi-Fi / phone hotspot as S |
+| **T** (teacher) | Tide server + console on the projector | Same Wi-Fi / phone hotspot as S |
 | **S** (student) | Tide agent, VS Code, Chrome | Same Wi-Fi / phone hotspot as T |
 
-- No cable, no fixed IPs. Both laptops just join the same Wi-Fi.
-- If S can't find T automatically (some hotspots block devices from seeing each other), start the
-  agent with `tide-agent --server <T's IP>`. `tide-server` prints T's IP when it starts.
-- **One laptop is enough** if needed: run the server and the agent on the same Windows PC
-  (`tide-agent --server 127.0.0.1`). The console still shows 60 seats (1 real + 59 simulated).
+- No cable, no IP settings, no commands: both PCs use the double-click files (see
+  [SETUP_TWO_PCS.md](SETUP_TWO_PCS.md), or `START HERE.txt` in the Tide folder).
+- **One laptop is enough** if needed: start the teacher and the student on the same PC.
 
 ## 2. Prep (5 minutes before)
 
-1. On T: `tide-server --demo` → opens the console, creates the "CN Lab Test 3" exam (internet
-   allowed) with built-in Set A/B questions, and adds **59 simulated seats** (seat 45 amber, 58–60 join late).
-2. On S: copy `demo\props\dsa_lab5.cpp` to `Documents\old\` — the "old saved code" prop. Install the
-   Copilot extension in VS Code if you want the pre-flight flag.
-3. On S: Chrome with `chatgpt.com` and `poe.com` bookmarked. Optional: LM Studio or Ollama installed
-   for the "local AI" step.
-4. Put `OPENROUTER_API_KEY` in `.env.local` on T. The console header shows **Jev live**. Without it
-   the header shows "Offline heuristics" and everything except Jev auto-closing still works.
+1. **T:** double-click `TEACHER - 2 Start.bat`. Log in (PIN 2468). The header should say **Jev live**.
+2. **T:** on **Setup**, type a title, attach your question PDF (Set A; optionally a different Set B
+   for even seats), keep **Internet: Allowed · monitored**, press **Create & open lobby**.
+3. **S:** copy `demo\props\dsa_lab5.cpp` into `Documents\old\` (the "old saved code" prop), delete
+   `C:\Exam` from any earlier run, have Chrome (with `chatgpt.com` and `poe.com` bookmarked), VS Code
+   and optionally LM Studio ready.
+4. **S:** double-click `STUDENT - 2 Start.bat` but **don't join yet** — you'll join live.
+
+Want the room to look like a full lab? Start T with `TEACHER - 2 Start (mock 60-seat room).bat`
+instead: 59 simulated students appear when you create the test, and a few of them raise scripted
+alerts during the exam. Without it, the room shows only your real student(s).
 
 ## 3. The script (~4 minutes)
 
 | # | Say | Do | Audience sees |
 |---|---|---|---|
-| 0 | "60 students, one invigilator. Nobody can watch 60 screens. Here's Tide." | Show console, **Lobby** | 57 seats already in, join code |
-| 1 | "A student sits at PC-07 and opens Tide." | On S: launch agent, enter code + roll + seat 7 | Pre-flight: **Online ✓ (monitored), Copilot ! (flagged), files indexed ✓**. Seat 7 appears **amber** |
-| 2 | "Questions don't exist anywhere until now. Not on Classroom, not in email." | Click **Start** | Timer bar on S; `C:\Exam\22BCS107\` gets **Set A** (odd seat). Even seats get Set B |
-| 3 | "Real tools are fine — and so is the internet." | Open VS Code on S, browse to a normal site | Nothing flagged. Timeline shows "VS Code" in grey |
-| 4 | "Now the classic." | Open `chatgpt.com` in Chrome — it **loads** | Tab closes in ~1 s, red screen on S; seat 7 **red**: "ChatGPT — closed", screenshot attached |
-| 5 | "Something no block list knows." | Open `poe.com` | "poe.com — AI assistant · **Jev 0.97**" → auto-closed. Point at the Jev badge |
-| 6 | "It's not just websites." | Open LM Studio / Ollama (a local AI, no internet needed) | "LM Studio — closed", app killed |
-| 7 | "Old code saved from home." | Open `Documents\old\dsa_lab5.cpp` in VS Code, paste it into `main.c` | "Pre-exam file opened", then "Old code reused · 100 %" with the original path |
-| 8 | "The teacher sees the story, not noise." | Click seat 7 | Timeline, screenshots, Jev confidence, code-growth chart |
-| 9 | "Submit." | Click **Submit** on S | Seat shows ✓. **Results** tab: submissions, similarity pairs, CSV export |
+| 0 | "60 students, one invigilator. Nobody can watch 60 screens. Here's Tide." | Show the console **Lobby** | The join code, an empty room waiting for students |
+| 1 | "A student sits at PC-07 and opens Tide." | On S: type the code, roll, seat 7, **Join** | Pre-flight on S: **Online ✓ (monitored), Copilot ! (flagged), files indexed ✓**. Seat 07 appears on T, **amber** |
+| 2 | "The question paper doesn't exist anywhere until now. Not on Classroom, not in email." | T: **Start** | Timer bar on S; the PDF lands in `C:\Exam\22BCS107\` (Set A, odd seat). T switches to the live room and alert feed |
+| 3 | "Real tools are fine — and so is the internet." | S: open VS Code, browse a normal site | Nothing flagged. Seat 07's timeline shows "VS Code" in grey |
+| 4 | "Now the classic." | S: open `chatgpt.com` — it **loads** | Tab closes in ~1 s, red screen on S; T: seat 07 **red**, feed says "ChatGPT — closed · Auto-closed", screenshot attached |
+| 5 | "Something no block list knows." | S: open `poe.com` | Feed: "poe.com — AI assistant · **Jev 0.97** · Auto-closed". Point at the Jev badge |
+| 6 | "It's not just websites." | S: open LM Studio / Ollama (local AI, no internet needed) | "LM Studio — closed", app killed |
+| 7 | "Old code saved from home." | S: open `Documents\old\dsa_lab5.cpp` in VS Code, copy it into a new `main.c` in `C:\Exam\22BCS107\` | "Pre-exam file opened", then "Old code reused · 100 %" with the original path (within 30 s) |
+| 8 | "The teacher sees the story, not noise." | T: click seat 07 | Timeline, screenshots, Jev confidence, code-growth chart |
+| 9 | "Submit." | S: **Submit** in the timer bar | Seat shows ✓. **Results** tab: submission, flags, CSV export |
 | 10 | "For stricter labs, flip one switch: internet blocked…" | Show the Setup toggle / production slide | ARCHITECTURE §9 |
 
 **Recovery:** if a step misfires, open the **Simulate** menu in the console and trigger that
@@ -130,7 +131,7 @@ The server clock is the only clock. Agents get an absolute end time and a measur
 
 **Q: Does it scale to 60 seats on one laptop?**
 Yes. Each seat sends a few small JSON messages per second plus a screenshot per flag. The demo
-itself runs 60 seats (59 simulated). SQLite handles this easily.
+can run a full 60-seat room (the mock-room option adds 59 simulated seats). SQLite handles this easily.
 
 **Q: Privacy?**
 Runs only during the exam, exits after submit. Collects metadata and screenshots only on flags.
