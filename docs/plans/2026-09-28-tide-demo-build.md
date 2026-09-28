@@ -4,6 +4,8 @@
 
 > **Status: built.** Tasks 1-24 are implemented, committed on branch `rebuild`, and verified with 108 passing tests (25 common + 48 server + 29 agent, 1 skipped Windows-only + 6 console) plus a single-device rehearsal against the real server and live Jev. Task 25 is partially done: single-device rehearsal passed; the two-Windows-laptop rehearsal and real-hardware Windows verification are still open.
 
+> **Changed after this plan (decision D11 in the spec):** internet is now a per-exam setting, default **allowed · monitored**. `Policy.internet` ("allowed" | "blocked") flows through the rules, agent pre-flight, server pre-flight gating, demo seeding and the Setup page. The offline-gating behaviour described in Tasks 9, 16 and 20 now applies only to *blocked* exams. Also fixed: the duplicate "Copilot installed" flag (the extension watcher waits for the pre-flight baseline) and a real agent taking over a simulated demo seat. Test total is now 114 (27 common + 51 server + 30 agent + 6 console).
+
 **Goal:** Build the demo version of Tide: a Windows monitoring agent, a FastAPI teacher server with the Jev classifier, and a React teacher console, able to run the 4-minute demo in `docs/DEMO.md` on 1–2 laptops.
 
 **Architecture:** A shared `tide_common` package holds the wire protocol, the policy (allow/deny lists) and the deterministic rules, so the agent and server agree by construction. The agent acts instantly on rule hits and sends everything else to the server. The server classifies unknown signals (rules → cache → Jev → heuristics), decides act/flag/log, keeps the exam clock, and pushes live state to the console over WebSocket. Windows-specific code sits behind one `Platform` interface, so all agent logic is tested on any OS with a fake.

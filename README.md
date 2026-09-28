@@ -17,11 +17,16 @@ phone hotspot, open ChatGPT, grab the questions from Classroom before unplugging
 |---|---|
 | ChatGPT / Claude / Gemini / Copilot in a browser | Reads the address bar and **closes the tab** instantly |
 | An AI site or app no block list knows | **Jev** (TypeSafe's decision model) classifies it; at ≥ 0.90 confidence Tide closes it |
-| Re-plugging LAN, Wi-Fi, phone hotspot | Detects internet in ~5 s and shows a **full-screen block** until it's off |
-| Getting the questions before disconnecting | Questions exist only in Tide and are released at **Start**, only to PCs confirmed offline, **odd/even sets** by seat |
+| Local AI that needs no internet (LM Studio, Ollama…) | App monitoring **kills it**; unknown AI apps go to Jev |
+| Mailing code to yourself, Drive, Classroom, WhatsApp Web | On the block list, **closed instantly** |
+| Getting the questions early | Questions exist only in Tide and are released at **Start**, with **odd/even sets** by seat |
 | Old code on the PC or a pen drive | Pre-exam file fingerprints, so **"old code reused · 82 %"**, plus USB detection |
 | Copying from a neighbour | Different sets, LAN-peer detection, similarity across submissions |
 | Killing the agent | The seat goes grey in 10 s (in production it's a Windows service students can't stop) |
+
+**Internet is allowed by default, and monitored.** Keeping 60 PCs offline is what fails today, so Tide
+makes it safe to stay online instead. Strict labs can flip one switch to **Internet: Blocked**: then
+questions go only to offline PCs, and re-plugging the LAN or joining a hotspot turns the screen red.
 
 Tide **never grades or punishes**. Every flag carries a screenshot, the time, and where it came from
 (rule or Jev + confidence), and the teacher dismisses or confirms it.
@@ -78,9 +83,9 @@ React + Vite + TypeScript · Jev via OpenRouter Decisions API.
 ## Status
 
 Built and verified in this repo, following `docs/plans/2026-09-28-tide-demo-build.md` end to end:
-73 common+server tests, 29 agent tests (1 Windows-only test skipped off Windows), and 6 console
+78 common+server tests, 30 agent tests (1 Windows-only test skipped off Windows), and 6 console
 tests all pass, the console type-checks and builds, and a single-device rehearsal (fake student PC
-against the real server with live Jev) caught every scripted cheat correctly. Remaining before a
+against the real server with live Jev, internet allowed) caught every scripted cheat correctly. Remaining before a
 real two-laptop demo: Task 19's manual verification on real Windows hardware, and the full
 `docs/SETUP_TWO_PCS.md` rehearsal.
 

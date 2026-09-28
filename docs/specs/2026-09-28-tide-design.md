@@ -22,12 +22,13 @@ stopped live) on a clean console, and the team can answer "what about…" questi
 | D2 | **Windows only** | Real lab is Windows; best OS APIs |
 | D3 | **Background agent watches the real desktop**, no kiosk | Principle 1 |
 | D4 | **Enforcement mode B:** auto-act on high-confidence hits, flag the rest | Stops the cheat live; humans still review |
-| D5 | **Questions released only through Tide**, after offline pre-flight, odd/even sets by seat number | Closes "download from Classroom first" |
+| D5 | **Questions released only through Tide**, at Start, odd/even sets by seat number (in *blocked* mode, only after an offline pre-flight) | Closes "download from Classroom first" |
 | D6 | **Jev classifier on the teacher server** (via OpenRouter Decisions API, `~typesafe/jev-latest`) for ambiguous signals; rules first; offline heuristics fallback | Catches unknown AI tools with a thresholdable confidence; demo never breaks |
 | D7 | **Stack:** Python agent (PyInstaller exe, pywebview UI) · FastAPI + SQLite server · React + Vite console. **No Electron** | OS APIs from Python; small binary; team knows Python/React |
 | D8 | **Server clock is authoritative**; agents get `ends_at` + offset | Timer sync, restart-safe |
 | D9 | **59 simulated seats** in demo mode | Makes one laptop look like a 60-seat lab |
 | D10 | **No grading** in the demo | Not the differentiator |
+| D11 | **Internet is a per-exam setting, default *allowed · monitored*.** *Blocked* mode (offline pre-flight gate + red screen when online) remains for strict labs | Keeping PCs offline is what fails today and it made the demo need a LAN cable; with internet on, ChatGPT really loads and gets closed live, both laptops just share Wi-Fi, and one laptop can run the whole demo |
 
 ## 3. In scope (demo build)
 
@@ -35,7 +36,7 @@ Requirement IDs are referenced by the implementation plan.
 
 **Agent**
 - A1 Server discovery (UDP broadcast) + manual IP; pair with join code, roll, seat → token
-- A2 Pre-flight: internet probe, VS Code AI extension scan, deny-list process check, file inventory with fingerprints
+- A2 Pre-flight: internet probe (gates questions only in *blocked* mode), VS Code AI extension scan, deny-list process check, file inventory with fingerprints
 - A3 Watchers: foreground window + browser host (UIA), processes, network adapters + probe, LAN peers, USB, clipboard, exam-folder changes
 - A4 Local rules from the server policy; act instantly (close tab, kill app, overlay)
 - A5 Evidence screenshot on flags ≥ medium
@@ -55,7 +56,7 @@ Requirement IDs are referenced by the implementation plan.
 - S9 Demo mode: seed exam, 59 simulated seats, "Simulate event on seat" endpoint
 
 **Console** (matches `design/mock-ui.html`)
-- C1 Setup: title, duration, set uploads, policy chips
+- C1 Setup: title, duration, set uploads, policy chips, internet mode (allowed · monitored / blocked)
 - C2 Lobby: join code, seat grid with pre-flight status, Start
 - C3 Live: seat grid (colour, flag count, current app), flag feed, clock, extend, broadcast notice
 - C4 Seat drawer: timeline, flags with screenshot + Jev badge, code-growth chart, actions (warn, extend, dismiss/confirm)
@@ -73,11 +74,11 @@ unless marked **Windows-only** — those need `.exe` hardware verification (plan
 two-laptop rehearsal (`docs/SETUP_TWO_PCS.md`).
 
 1. ✅ Fresh laptop: run the agent, pair within 10 s of entering the code. **(.exe build + real hardware still open)**
-2. ✅ Pre-flight fails while internet is reachable; questions are not delivered to that seat.
+2. ✅ *Allowed mode (default):* an online PC passes pre-flight and receives its questions. *Blocked mode:* pre-flight fails while internet is reachable and questions are withheld until it's offline. Both covered by tests; allowed mode rehearsed live.
 3. ✅ Start delivers Set A to an odd seat, Set B to an even seat; timers on agents are within 1 s of the server.
 4. ⏳ **Windows-only.** Opening `chatgpt.com` in Chrome closes the tab within 2 s and shows a red seat with a screenshot. (Verified with the fake platform via the rule path; the real address-bar read + `Ctrl+W` close needs real Windows — plan Task 19.)
 5. ✅ An AI site not on any list is classified by Jev and auto-closed at ≥ 0.90. Verified live: `poe.com` → 0.97, an unknown "NoteGPT" app → 0.98.
-6. ✅ Enabling Wi-Fi with internet raises "Internet detected"; the block clears once Wi-Fi is off.
+6. ✅ *Blocked mode:* enabling Wi-Fi with internet raises "Internet detected" and a red screen that clears once Wi-Fi is off. *Allowed mode:* going online is a timeline event only. Both covered by tests.
 7. ✅ Opening an inventoried file, and pasting its contents into the exam folder, raise "Pre-exam file opened" and "Old code reused" with the path — verified at 100% match.
 8. ⏳ Killing the agent turns the seat grey within 10 s. (`monitor.tick` is unit-tested; not yet rehearsed by physically killing a running agent process.)
 9. ✅ Submit uploads the folder; the Results tab lists it, flags, and max-match %; CSV export endpoint verified.
