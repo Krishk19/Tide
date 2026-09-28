@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head><body>
+<section id="join" class="body">
+  <h1>Join lab test</h1>
+  <span id="server" class="found no">Looking for teacher…</span>
+  <div><label class="lbl">Code</label><input id="code" class="input code" maxlength="6" autofocus></div>
+  <div class="two">
+    <div><label class="lbl">Roll no.</label><input id="roll" class="input" maxlength="20"></div>
+    <div><label class="lbl">Seat</label><input id="seat" class="input" type="number" min="1" max="200"></div>
+  </div>
+  <div id="srvrow" class="hidden"><label class="lbl">Teacher address</label>
+    <input id="srv" class="input" placeholder="e.g. 192.168.1.20 — shown in the teacher's Tide window"></div>
+  <div id="err" class="err"></div>
+  <button id="go" class="btn">Join</button>
+</section>
+<section id="pre" class="body hidden">
+  <h1>Getting ready</h1><div id="checks"></div>
+  <div id="wait" class="waiting">Waiting for teacher to start</div>
+</section>
+<section id="fin" class="body hidden" style="text-align:center">
+  <div class="done-ic">✓</div><h1>Submitted</h1><div id="finsub" class="sub"></div>
+  <div class="sub" style="font-size:12px">You can leave. Tide closes in 10 s.</div>
+</section>
+<script>
+const $ = id => document.getElementById(id);
+const show = id => ["join","pre","fin"].forEach(s => $(s).classList.toggle("hidden", s !== id));
+const ICON = {ok:"✓", warn:"!", fail:"✕", run:""};
+window.tide = {
+  showJoin(server, error) {
+    show("join");
+    $("server").textContent = server ? `Teacher found · ${server}` : "Teacher not found yet";
+    $("server").classList.toggle("no", !server);
+    $("srvrow").classList.toggle("hidden", Boolean(server));
+    $("err").textContent = error || "";
+  },
+  showPreflight(checks) {
+    show("pre");
+    $("checks").innerHTML = "";
+    for (const c of checks) {
+      const row = document.createElement("div");
+      row.className = `check ${c.state}`;
+      row.innerHTML = `<div class="ci"></div><div><div class="ct"></div><div class="cd"></div></div>`;
+      row.querySelector(".ci").textContent = ICON[c.state] || "";
+      row.querySelector(".ct").textContent = c.label;
+      row.querySelector(".cd").textContent = c.detail;
+      $("checks").appendChild(row);
+    }
+    const blocked = checks.some(c => c.state === "fail");
+    $("wait").textContent = blocked ? "Fix the red item to continue" : "Waiting for teacher to start";
+  },
+  done(n, at) { show("fin"); $("finsub").textContent = `${n} files · ${at}`; },
+  error(text) { $("err").textContent = text; },
+};
+$("seat").value = (location.hash.match(/seat=(\d+)/) || [])[1] || "";
+$("go").onclick = async () => {
+  $("go").disabled = true; $("err").textContent = "";
+  const r = await window.pywebview.api.join($("code").value.trim(), $("roll").value.trim(), $("seat").value,
+                                            $("srv").value.trim());
+  $("go").disabled = false;
+  if (!r.ok) $("err").textContent = r.error;
+};
+</script></body></html>

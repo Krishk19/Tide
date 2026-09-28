@@ -1,0 +1,27 @@
+:root{--bg:#F5F6F8;--surface:#fff;--ink:#0F172A;--muted:#64748B;--line:#E6E8EC;--brand:#0B7A83;--brand-2:#E6F4F5;
+--ok:#16A34A;--ok-bg:#EAF7EE;--warn:#D97706;--warn-bg:#FDF3E3;--crit:#DC2626;--crit-bg:#FDECEC;
+--font:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;--mono:"Cascadia Code",Consolas,monospace}
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:var(--font);color:var(--ink);background:var(--surface);font-size:14px}
+.body{padding:26px 28px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:22px;margin:0;letter-spacing:-.015em}
+.sub{color:var(--muted)}
+.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:inherit}
+.input.code{font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;text-align:center}
+.two{display:grid;grid-template-columns:1fr 110px;gap:10px}
+.btn{border:0;background:var(--brand);color:#fff;padding:12px 22px;border-radius:10px;font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+.btn[disabled]{opacity:.5}
+.found{display:inline-flex;gap:8px;align-items:center;align-self:flex-start;background:var(--ok-bg);color:#15803D;font-size:12px;font-weight:600;padding:5px 10px;border-radius:99px}
+.found.no{background:var(--warn-bg);color:#B45309}
+.err{color:var(--crit);font-weight:500;min-height:1em}
+.check{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px}
+.check .ci{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;font-weight:700}
+.check.ok .ci{background:var(--ok-bg);color:var(--ok)}
+.check.warn{background:var(--warn-bg)}.check.warn .ci{background:#FBE3BF;color:var(--warn)}
+.check.fail{background:var(--crit-bg)}.check.fail .ci{background:#F9CFCF;color:var(--crit)}
+.check.run .ci{border:2px solid var(--line);border-top-color:var(--brand);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ct{font-weight:600}.cd{font-size:12px;color:var(--muted)}
+.waiting{text-align:center;padding:14px;border-radius:10px;background:var(--bg);color:var(--muted);font-weight:500}
+.done-ic{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;margin:20px auto 0;font-size:30px}
+.hidden{display:none!important}

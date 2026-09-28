@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body{background:transparent;display:flex;align-items:center;justify-content:center}
+.pill{display:flex;align-items:center;gap:14px;padding:7px 8px 7px 16px;border-radius:999px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);font-size:13px;width:100%;height:100%}
+.live{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+.seat{font-weight:700}.set{color:var(--muted)}.sep{width:1px;height:18px;background:var(--line)}
+.time{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;flex:1}
+.time.low{color:var(--crit)}
+.sub{background:var(--brand);color:#fff;border:0;border-radius:999px;padding:7px 14px;font-weight:600;cursor:pointer}
+.note{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:var(--warn-bg);color:#92400E;font-weight:600;border-radius:999px;padding:0 16px;text-align:center}
+</style></head><body>
+<div class="pill pywebview-drag-region">
+  <span class="live"></span><span id="seat" class="seat"></span><span id="set" class="set"></span>
+  <span class="sep"></span><span id="time" class="time">--:--</span>
+  <button id="sub" class="sub">Submit</button>
+</div>
+<div id="note" class="note"></div>
+<script>
+let ends = 0;
+const pad = n => String(n).padStart(2, "0");
+function render() {
+  const s = Math.max(0, Math.round((ends - Date.now()) / 1000));
+  const el = document.getElementById("time");
+  el.textContent = `${Math.floor(s / 60)}:${pad(s % 60)}`;
+  el.classList.toggle("low", s < 300);
+}
+setInterval(render, 500);
+window.tide = {
+  start(seat, set, endsMs) { document.getElementById("seat").textContent = seat; document.getElementById("set").textContent = set; ends = endsMs; render(); },
+  setEnds(endsMs) { ends = endsMs; render(); },
+  notice(text) { const n = document.getElementById("note"); n.textContent = text; n.style.display = "flex"; setTimeout(() => n.style.display = "none", 6000); },
+};
+document.getElementById("sub").onclick = async () => {
+  const b = document.getElementById("sub");
+  if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Sure?"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "Submit"; }, 3000); return; }
+  b.disabled = true; b.textContent = "Submitting…";
+  await window.pywebview.api.submit();
+};
+</script></body></html>
