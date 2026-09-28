@@ -20,6 +20,7 @@ def test_create_exam_upload_files_and_read_back(teacher):
     assert r.status_code == 200
     exam = r.json()
     assert exam["duration_s"] == 5400 and len(exam["join_code"]) == 6
+    assert exam["internet"] == "allowed"
     up = teacher.post(f"/api/teacher/exams/{exam['id']}/files", data={"set_name": "A"},
                       files={"file": ("q.txt", b"Q1", "text/plain")})
     assert up.json() == {"name": "q.txt", "set": "A"}
@@ -62,3 +63,11 @@ def test_repair_same_roll_same_seat_rotates_token(client, ctx, exam):
     with ctx.db() as db:
         assert seat_by_token(db, first["token"]) is None
         assert seat_by_token(db, second["token"]).id == first["seat_id"]
+
+
+def test_exam_internet_mode(teacher):
+    blocked = teacher.post("/api/teacher/exams", json={"title": "Strict", "duration_min": 60,
+                                                       "apps": ["VS Code"], "internet": "blocked"})
+    assert blocked.json()["internet"] == "blocked"
+    assert teacher.post("/api/teacher/exams", json={"title": "x", "duration_min": 60, "apps": [],
+                                                    "internet": "maybe"}).status_code == 422

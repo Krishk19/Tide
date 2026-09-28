@@ -80,12 +80,17 @@ class Policy:
     apps: tuple[str, ...]
     allowed_processes: frozenset[str]
     server_ip: str = ""
+    internet: str = "allowed"          # "allowed" (monitored) | "blocked" (must stay offline)
 
     @classmethod
-    def from_apps(cls, apps: Iterable[str], server_ip: str = "") -> "Policy":
+    def from_apps(cls, apps: Iterable[str], server_ip: str = "", internet: str = "allowed") -> "Policy":
         apps = tuple(sorted(apps))
         procs = frozenset(p for a in apps for p in APP_CATALOG.get(a, ()))
-        return cls(apps=apps, allowed_processes=procs, server_ip=server_ip)
+        return cls(apps=apps, allowed_processes=procs, server_ip=server_ip, internet=internet)
+
+    @property
+    def internet_blocked(self) -> bool:
+        return self.internet == "blocked"
 
     def is_allowed_process(self, name: str) -> bool:
         n = name.lower()
@@ -93,10 +98,10 @@ class Policy:
 
     def to_dict(self) -> dict[str, Any]:
         return {"apps": list(self.apps), "allowed_processes": sorted(self.allowed_processes),
-                "server_ip": self.server_ip}
+                "server_ip": self.server_ip, "internet": self.internet}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Policy":
         return cls(apps=tuple(d.get("apps", ())),
                    allowed_processes=frozenset(d.get("allowed_processes", ())),
-                   server_ip=d.get("server_ip", ""))
+                   server_ip=d.get("server_ip", ""), internet=d.get("internet", "allowed"))

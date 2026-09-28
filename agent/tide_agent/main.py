@@ -92,9 +92,10 @@ class AgentApp:
                                           self.cfg.exam_root, inventory)
             inventory = self.engine.inventory = res.inventory
             self.engine.ext.set_baseline(res.extensions)
-            self.ui.show_preflight(preflight_checks(res))
+            blocked = self.engine.policy.internet_blocked
+            self.ui.show_preflight(preflight_checks(res, blocked))
             await self.link.send(preflight_message(res))
-            if not res.internet:
+            if not (res.internet and blocked):      # only an offline-only exam makes us wait
                 return
             await asyncio.sleep(5)
 

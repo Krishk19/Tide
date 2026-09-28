@@ -28,8 +28,8 @@ export const api = {
   },
   catalog: () => req<{ apps: string[]; presets: Record<string, string[]> }>("GET", "/api/teacher/catalog"),
   exam: () => req<{ exam: Exam | null; files: { name: string; set: string }[] }>("GET", "/api/teacher/exam"),
-  createExam: (title: string, duration_min: number, apps: string[]) =>
-    req<Exam>("POST", "/api/teacher/exams", { title, duration_min, apps }),
+  createExam: (title: string, duration_min: number, apps: string[], internet: "allowed" | "blocked") =>
+    req<Exam>("POST", "/api/teacher/exams", { title, duration_min, apps, internet }),
   upload: (examId: number, setName: string, file: File) => {
     const f = new FormData(); f.append("set_name", setName); f.append("file", file);
     return req("POST", `/api/teacher/exams/${examId}/files`, f);

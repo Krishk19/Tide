@@ -30,12 +30,13 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def create_exam(db: Session, title: str, duration_s: int, apps: Sequence[str]) -> Exam:
+def create_exam(db: Session, title: str, duration_s: int, apps: Sequence[str],
+                internet: str = "allowed") -> Exam:
     code = new_join_code()
     while db.exec(select(Exam).where(Exam.join_code == code)).first():
         code = new_join_code()
     exam = Exam(title=title, duration_s=duration_s, join_code=code,
-                policy_json=json.dumps(Policy.from_apps(apps).to_dict()))
+                policy_json=json.dumps(Policy.from_apps(apps, internet=internet).to_dict()))
     db.add(exam)
     db.commit()
     db.refresh(exam)
@@ -69,6 +70,8 @@ def pair_seat(db: Session, join_code: str, roll: str, seat_no: int, hostname: st
     if seat and seat.state == "submitted":
         raise PairError(409, "Already submitted")
     token = secrets.token_urlsafe(32)
+    if seat and seat.simulated:            # demo mode: a real PC replaces the simulated one
+        seat.simulated, seat.state, seat.fg_app, seat.preflight_json = False, "lobby", "", "{}"
     seat = seat or Seat(exam_id=exam.id, seat_no=seat_no, roll=roll)
     seat.hostname = hostname
     seat.token_hash = hash_token(token)

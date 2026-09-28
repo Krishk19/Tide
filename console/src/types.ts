@@ -13,7 +13,7 @@ export interface Flag {
 }
 export interface Exam {
   id: number; title: string; duration_s: number; join_code: string; state: "lobby" | "live" | "ended";
-  started_at: number | null; ends_at: number | null; apps: string[];
+  started_at: number | null; ends_at: number | null; apps: string[]; internet: "allowed" | "blocked";
 }
 export interface EventItem { id: number; seat_id: number; ts: number; kind: string; text: string }
 export type ServerMsg =

@@ -26,7 +26,7 @@ export default function Live({ room, page, onPage, onOpen }:
         <button className="btn" onClick={() => { const t = prompt("Notice to all students"); if (t) api.notice(t); }}>Notice</button>
         <div className="menu">
           <button className="btn" onClick={() => setMenu(!menu)}>Simulate</button>
-          {menu && <div className="menu-list">{SIM.map(([k, label]) => (
+          {menu && <div className="menu-list">{SIM.filter(([k]) => k !== "internet" || room.exam?.internet === "blocked").map(([k, label]) => (
             <button key={k} onClick={() => { setMenu(false); api.simulate(real?.seat_no ?? 7, k); }}>{label} · PC-{String(real?.seat_no ?? 7).padStart(2, "0")}</button>))}</div>}
         </div>
       </TopBar>

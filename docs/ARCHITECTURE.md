@@ -6,7 +6,7 @@
 > and answer a judge's "but what if the student…" question.
 
 **Status: built.** Everything described here is implemented on branch `rebuild`
-(`docs/plans/2026-09-28-tide-demo-build.md`, all 25 tasks) and verified with 108 passing tests plus a
+(`docs/plans/2026-09-28-tide-demo-build.md`, all 25 tasks) and verified with 114 passing tests plus a
 single-device rehearsal against the real Jev API. Open items: real-Windows verification of the
 address-bar/close-tab/screenshot code (fake platform covers the logic, not the OS calls), and the
 two-laptop dress rehearsal. See `docs/specs/2026-09-28-tide-design.md` §5 for the exact checklist.
@@ -29,15 +29,29 @@ Today's only control is "unplug the LAN cable". Students beat it by:
 | 5 | Mail code to themselves earlier, open it during the test | Needs internet — see #2 |
 | 6 | Copy from a neighbour (same set) | Odd/even sets help, but nothing checks it |
 
-**Conclusion:** we can't lock students inside our own editor (they need their real tools), and
-we can't watch 60 screens by eye. So Tide **watches the real desktop** from a small agent on each
-PC, **controls when questions exist**, and gives the invigilator **one screen that shows only
-what matters**.
+**Conclusion:** we can't lock students inside our own editor (they need their real tools), we
+can't reliably keep 60 PCs offline, and we can't watch 60 screens by eye. So Tide **watches the
+real desktop** from a small agent on each PC, **controls when questions exist**, and gives the
+invigilator **one screen that shows only what matters**.
+
+### Internet: allowed (monitored) or blocked
+
+Each exam picks one mode on the Setup page:
+
+| Mode | Default? | What happens |
+|---|---|---|
+| **Allowed · monitored** | **Yes** (and the demo) | Students stay online. Every site and app is checked: forbidden sites (ChatGPT, Gmail, WhatsApp Web, Drive, Classroom…) close instantly, unknown ones go to Jev, being online is just a timeline entry |
+| **Blocked** | For strict labs | Questions go only to PCs confirmed offline. Going online (LAN, Wi-Fi, hotspot) turns the screen red until it's off, with a critical flag |
+
+Why "allowed" is the default: keeping a lab offline is exactly what fails today (students re-plug,
+use hotspots, grab answers before unplugging), and it breaks legitimate work. Strong monitoring
+makes the internet safe to leave on. Offline-capable cheats — local AI apps, old files, USB —
+are caught the same way in both modes.
 
 ### Design principles
 
 1. **Watch the real desktop, don't replace it.** Students keep VS Code, Wireshark, etc.
-2. **Questions only exist inside Tide, and only after the PC is confirmed offline.**
+2. **Questions only exist inside Tide, released at Start** (in *blocked* mode, only to PCs confirmed offline).
 3. **Act instantly on the obvious, ask AI about the ambiguous, let a human judge the rest.**
 4. **Evidence over accusation.** Every flag carries what, when, confidence, and a screenshot.
 5. **One glance.** Green / amber / red seat tiles. Minimal text.
@@ -118,17 +132,18 @@ bundling Chromium.
 
 | Check | Pass condition | If it fails |
 |---|---|---|
-| Internet | Connectivity probe fails (see §4.3) | Seat stays red: "Disconnect internet". **Cannot receive questions.** |
-| AI extensions | No Copilot/Codeium/Cline/Continue/Tabnine/… in VS Code | Seat amber, flag raised. Allowed to continue (they can't work offline anyway). |
+| Internet | *Allowed mode:* always passes (shown as Online/Offline). *Blocked mode:* connectivity probe fails (see §4.3) | *Blocked mode only:* seat stays red, "Disconnect internet", **cannot receive questions** |
+| AI extensions | No Copilot/Codeium/Cline/Continue/Tabnine/… in VS Code | Seat amber, flag raised. Allowed to continue; AI calls from the editor are what the monitoring watches for. |
 | Denied apps running | None of the deny list running | Agent closes them, notes it |
 | File inventory | Always passes | Records fingerprints of source files already on disk (see §4.4) |
 
 ### 3.3 Start and question release
-- Teacher presses **Start**. Server sends **only green seats** their set:
-  seat number odd → Set A, even → Set B.
+- Teacher presses **Start**. Server sends every ready seat its set (in *blocked* mode, only seats
+  that passed the offline check): seat number odd → Set A, even → Set B.
 - Files land in `C:\Exam\<roll>\` along with a `README.txt` with instructions.
-- **Why this closes cheat #3:** the questions never exist on Classroom or email. A leaked join
-  code gets you nothing; questions go only to paired, offline, checked seats, at Start.
+- **Why this closes cheat #3:** the questions never exist on Classroom or email, and Classroom,
+  Gmail and Drive are blocked during the exam. A leaked join code gets you nothing; questions go
+  only to paired, checked seats, at Start.
 
 ### 3.4 Clock
 - The **server is the only clock.** At pairing the agent measures its offset
@@ -244,7 +259,7 @@ Certain matches are acted on immediately, with no round-trip:
 |---|---|
 | Browser host on the deny list (`chatgpt.com`, `claude.ai`, `gemini.google.com`, `copilot.microsoft.com`, `perplexity.ai`, `chat.deepseek.com`, Gmail, WhatsApp Web, Drive, Classroom, …). `poe.com` is left off on purpose, so the demo shows Jev catching an unlisted site | **Close tab** + block overlay + flag |
 | Process on deny list | **Kill process** + block overlay + flag |
-| Internet reachable | **Block overlay stays until offline** + flag (critical) |
+| Internet reachable (*blocked* mode only) | **Block overlay stays until offline** + flag (critical). In *allowed* mode it's a timeline event |
 | USB drive inserted | Flag (high), no action |
 
 ### 5.2 Jev — the AI classifier (server)
@@ -301,7 +316,7 @@ so they never auto-act) and says so in the console header. The demo never breaks
 ### 5.3 Severity → seat colour
 | Severity | Examples | Seat tile |
 |---|---|---|
-| critical | Internet reachable, AI site/app (auto-acted), agent killed | **Red** |
+| critical | AI site/app (auto-acted), agent killed, internet reachable (*blocked* mode) | **Red** |
 | high | USB, old code reused, clipboard match, Jev violation ≥ 0.8 | **Red** |
 | medium | Code burst, LAN peer connection, AI extension installed, Jev 0.6–0.8 | **Amber** |
 | info | App switches, allowed tools, snapshots | Green (timeline only) |
@@ -395,7 +410,7 @@ The Jev verdict cache is in memory (one exam per server run).
 | Seats | 1 real laptop + **59 simulated seats** so the grid looks like a real lab | 60 real PCs |
 | Agent install | Run `tide-agent.exe` | MSI via Group Policy / lab image, Windows service + session helper |
 | Seat number | Typed | From hostname |
-| Network | Ethernet cable between laptops (LAN); student Wi-Fi used for the "hotspot" cheat | Lab VLAN where the firewall allows only the Tide server; optional Windows Firewall lockdown pushed by the service |
+| Network | Both laptops on the same Wi-Fi; internet **allowed · monitored** | Lab network; per exam, *allowed · monitored* or *blocked* (optionally with Windows Firewall rules pushed by the service) |
 | Teacher auth | PIN | Accounts, multiple labs and teachers at once |
 | Jev | Live if key present, else offline heuristics | Live, with an on-prem fallback |
 | Storage | SQLite on the teacher laptop | Same (60 seats is small), or Postgres for a department |
@@ -410,9 +425,11 @@ The Jev verdict cache is in memory (one exam per server run).
   goes silent, the seat turns grey within 10 s anyway, which is itself evidence.
 - **Phones and second devices** are for physical invigilation (phones are collected). Tide makes
   the invigilator's job smaller by telling them *which* seat to walk to.
-- **Inside a VM** (VMware), we see the VMware window, not the guest's browser. Mitigations: host
-  internet detection still fires (NAT/bridged use the host adapters); the lab policy sets VMs to
-  host-only networking; pre-flight can read `.vmx` files for NAT/bridged adapters.
+- **Inside a VM** (VMware), we see the VMware window, not the guest's browser. For VM labs, use
+  *blocked* mode with host-only VM networking (host internet detection still fires, since NAT/bridged
+  VMs use the host adapters); pre-flight can read `.vmx` files for NAT/bridged adapters.
+- **Answer sites that aren't AI** (Stack Overflow, GeeksforGeeks) are flagged for the teacher as
+  "web lookup", not auto-closed. Labs that want zero lookups add them to the block list or use *blocked* mode.
 - **A friend typing the answer for you** in the same room isn't a software problem.
 - Tide **flags and stops obvious violations; it never grades or punishes.** A human confirms
   every penalty.

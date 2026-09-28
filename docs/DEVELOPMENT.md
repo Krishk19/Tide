@@ -53,7 +53,7 @@ in the console. Then type these into terminal 3, one per line:
 | `code` | back to VS Code | timeline: VS Code |
 | `poe` | opens poe.com (not on any list) | **poe.com — AI assistant** (Jev 0.9x, Auto-closed); with no key, an amber heuristic flag instead |
 | `app` | opens an unknown "NoteGPT" app | **notegpt — AI assistant** (Jev, killed) |
-| `wifi` / `wifi off` | joins / leaves a hotspot | **Internet via Wi-Fi "Redmi Note"**, and the agent shows the red screen until `wifi off` |
+| `wifi` / `wifi off` | goes online / offline | Timeline event only (the demo exam allows internet). In an exam created with **Internet: Blocked**: **Internet via Wi-Fi "Redmi Note"** and a red screen until `wifi off` |
 | `old` | opens `old/dsa_lab5.cpp` in VS Code | **Pre-exam file opened** |
 | `paste` | pastes the old file into `main.c` | **Old code reused · 100%** within 30 s |
 | `usb` | plugs in a pen drive | **USB drive inserted** |
@@ -69,16 +69,16 @@ It prints every UI event (`[block] ChatGPT — closed`, …) instead of showing 
 tide-server --demo
 tide-agent --server 127.0.0.1
 ```
-Then really do the cheats: open chatgpt.com in Chrome, open `demo\props\dsa_lab5.cpp` in VS Code, and so on.
-**Catch:** pre-flight needs the PC offline, but Jev needs the server online, and on one machine
-they're the same PC. So either run offline (heuristics, with no Jev auto-close) or use fake mode for Jev.
-Two machines remove this conflict.
+Then really do the cheats: open chatgpt.com in Chrome (it loads, then closes), open `poe.com`,
+open `demo\props\dsa_lab5.cpp` in VS Code and paste it into `main.c`, and so on. The demo exam allows
+internet, so one online PC runs the whole demo with Jev live. (Only an exam set to **Internet: Blocked**
+needs the student PC offline — test that mode with two machines.)
 
 ## 6. Where things live
 
 | Want to change… | File |
 |---|---|
-| Allowed apps, presets, blocked apps/sites, AI extensions | `common/tide_common/policy.py` |
+| Allowed apps, presets, blocked apps/sites, AI extensions, internet mode | `common/tide_common/policy.py` |
 | What counts as a violation (rules) | `common/tide_common/rules.py` |
 | Jev prompt and labels | `server/tide_server/classify/jev.py` |
 | Auto-act threshold, PIN, ports | `server/tide_server/config.py` (env `TIDE_*`) |

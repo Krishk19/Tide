@@ -14,6 +14,7 @@ from tide_server.ctx import Ctx
 from tide_server.exam_service import add_file, create_exam, current_exam, go_live
 from tide_server.live import push_seat, raise_flag
 from tide_server.models import Exam, Flag, Seat, Snapshot
+from tide_server.serialize import exam_policy
 
 SIM_APPS = ["VS Code", "VS Code", "VS Code", "Wireshark", "Terminal", "CodeBlocks", "VMware", "Explorer"]
 LATE_JOIN_S = {58: 4.0, 59: 8.0, 60: 12.0}
@@ -57,7 +58,7 @@ def seed_room(db: Session, exam: Exam, real_seat_no: int = 7, n: int = 60) -> No
             continue
         state = "lobby" if no in LATE_JOIN_S else "ready"
         pre = {"internet": False, "extensions": [], "denied_closed": [], "inventory_count": 40 + no}
-        if no == 19:
+        if no == 19 and exam_policy(exam).internet_blocked:
             state, pre["internet"] = "blocked", True
         seat = Seat(exam_id=exam.id, seat_no=no, roll=f"22BCS{100 + no}", state=state, simulated=True,
                     last_seen=t, fg_app=SIM_APPS[no % len(SIM_APPS)], preflight_json=json.dumps(pre))

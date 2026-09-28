@@ -33,7 +33,7 @@ def test_demo_boot_seeds_room(settings):
             seats = db.exec(select(Seat)).all()
     assert len(seats) == 59 and 7 not in {s.seat_no for s in seats}
     by_no = {s.seat_no: s for s in seats}
-    assert by_no[19].state == "blocked" and by_no[58].state == "lobby"
+    assert by_no[19].state == "ready" and by_no[58].state == "lobby"   # demo exam allows internet
 
 
 async def test_sim_script_fires_after_start(settings, monkeypatch):
@@ -60,3 +60,17 @@ def test_simulate_endpoint(teacher, ctx, paired):
         f = db.exec(select(Flag)).one()
     assert (f.source, f.label, f.confidence) == ("jev", "ai_assistant", 0.96)
     assert teacher.post("/api/teacher/simulate", json={"seat_no": 7, "kind": "nope"}).status_code == 422
+
+
+def test_real_agent_takes_over_simulated_seat(settings):
+    app = create_app(settings.model_copy(update={"demo": True}))
+    with TestClient(app) as client:
+        ctx = app.state.ctx
+        from tide_server.models import Exam
+        with ctx.db() as db:
+            join = db.get(Exam, ctx.extras["exam_id"]).join_code
+        r = client.post("/api/pair", json={"join_code": join, "roll": "22BCS108", "seat_no": 8})
+        assert r.status_code == 200
+        with ctx.db() as db:
+            s = db.get(Seat, r.json()["seat_id"])
+        assert (s.simulated, s.state) == (False, "lobby")

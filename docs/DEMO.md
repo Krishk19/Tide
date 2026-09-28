@@ -7,29 +7,33 @@ The exact demo script, and answers to the questions judges ask.
 the real server and live Jev (`docs/DEVELOPMENT.md` §4) — every step fired correctly. **Not yet
 rehearsed** on two real Windows laptops; do that before presenting (`docs/SETUP_TWO_PCS.md`).
 
+**Demo mode = internet allowed, monitored.** Students stay online; Tide watches every site and app
+and closes the forbidden ones live. (Tide also has a stricter *internet blocked* mode for real labs —
+mention it in the pitch, don't demo it.)
+
 ---
 
 ## 1. Hardware and network
 
 | Laptop | Role | Network |
 |---|---|---|
-| **T** (teacher) | Tide Server + Console on a projector | **Ethernet** to S (the "lab LAN"); **Wi-Fi** on your phone hotspot for Jev |
-| **S** (student) | `tide-agent.exe`, VS Code, Wireshark, Chrome | **Ethernet** to T only. Wi-Fi **off** at start |
+| **T** (teacher) | Tide Server + Console on a projector | Same Wi-Fi / phone hotspot as S |
+| **S** (student) | Tide agent, VS Code, Chrome | Same Wi-Fi / phone hotspot as T |
 
-- Use a direct Ethernet cable (USB-C adapters are fine) or a small switch. Give T a static IP
-  `10.10.0.1/24` and S `10.10.0.7/24`, no gateway on the Ethernet adapter.
-- On T, confirm the Ethernet adapter doesn't share internet (Windows ICS off).
-- A **second phone hotspot** (or the same one) is what S "secretly" joins in cheat #2.
-- Single-laptop fallback: run server and agent on T, and use T's Wi-Fi toggle for cheat #2.
-  The console still shows 60 seats (1 real + 59 simulated).
+- No cable, no fixed IPs. Both laptops just join the same Wi-Fi.
+- If S can't find T automatically (some hotspots block devices from seeing each other), start the
+  agent with `tide-agent --server <T's IP>`. `tide-server` prints T's IP when it starts.
+- **One laptop is enough** if needed: run the server and the agent on the same Windows PC
+  (`tide-agent --server 127.0.0.1`). The console still shows 60 seats (1 real + 59 simulated).
 
 ## 2. Prep (5 minutes before)
 
-1. On T: `tide-server --demo` → opens the console, creates the "CN Lab Test 3" exam with
-   built-in Set A/B questions, and adds **59 simulated seats** (seat 19 red, 45 amber, 58–60 join late).
-2. On S: put `D:\old\dsa_lab5.cpp` (or `Documents\old\dsa_lab5.cpp`) on disk, the "old saved code" prop. Install the Copilot
-   extension in VS Code if you want the pre-flight flag.
-3. On S: Chrome with ChatGPT bookmarked. Wi-Fi off.
+1. On T: `tide-server --demo` → opens the console, creates the "CN Lab Test 3" exam (internet
+   allowed) with built-in Set A/B questions, and adds **59 simulated seats** (seat 45 amber, 58–60 join late).
+2. On S: copy `demo\props\dsa_lab5.cpp` to `Documents\old\` — the "old saved code" prop. Install the
+   Copilot extension in VS Code if you want the pre-flight flag.
+3. On S: Chrome with `chatgpt.com` and `poe.com` bookmarked. Optional: LM Studio or Ollama installed
+   for the "local AI" step.
 4. Put `OPENROUTER_API_KEY` in `.env.local` on T. The console header shows **Jev live**. Without it
    the header shows "Offline heuristics" and everything except Jev auto-closing still works.
 
@@ -37,20 +41,17 @@ rehearsed** on two real Windows laptops; do that before presenting (`docs/SETUP_
 
 | # | Say | Do | Audience sees |
 |---|---|---|---|
-| 0 | "60 students, one invigilator, and today's only rule is 'unplug the LAN'. Here's what happens instead." | Show console, **Lobby** | 59 seats already green, join code `K7Q2XM` |
-| 1 | "A student sits at PC-07 and opens Tide." | On S: launch agent, enter code + roll | Pre-flight ticks: **Offline ✓, Copilot ✗ (flagged), 214 files indexed ✓**. Seat 7 appears **amber** |
-| 2 | "Questions don't exist anywhere until now. Classroom never had them." | Click **Start** | Timer pill on S; `C:\Exam\22BCS107\` has **Set A** (odd seat). Seat 8 got Set B |
-| 3 | "Real tools are fine." | Open VS Code + Wireshark on S | Nothing. Seat stays calm. Timeline shows "VS Code", "Wireshark" in grey |
-| 4 | "Now the classic." | On S: open ChatGPT in Chrome | Tab closes in ~1 s, red overlay on S; seat 7 **red**: "ChatGPT — closed automatically", screenshot attached |
-| 5 | "Something no keyword list knows." | Open `poe.com` or a new AI site | Console: **"ai_assistant · Jev 0.96"** → auto-closed. Point at the Jev badge |
-| 6 | "The LAN-cable trick." | Turn on Wi-Fi on S, join a hotspot | Overlay on S: "Internet detected". Seat **red**: "Internet via Wi-Fi 'Redmi'" |
-| 7 | "Old code from home." | Wi-Fi off. Open `D:\old\dsa_lab5.cpp`, paste it into the exam file | "Pre-exam file opened" + "Old code reused — 82 % match D:\old\dsa_lab5.cpp" |
-| 8 | "The teacher sees the story, not noise." | Click seat 7 | Timeline, screenshots, code-growth chart with the paste spike |
-| 9 | "Submit." | Click **Submit** on S | Seat shows ✓. **Results** tab: submissions, similarity pairs, export CSV |
-| 10 | "In a real lab this is a Windows service students can't kill…" | Show the production slide | ARCHITECTURE §9 |
-
-**Why the AI sites don't load:** S is offline, which is the point, so Chrome shows its "No internet"
-page. Tide reads the address bar, so it catches the attempt anyway. Say: "even trying counts."
+| 0 | "60 students, one invigilator. Nobody can watch 60 screens. Here's Tide." | Show console, **Lobby** | 57 seats already in, join code |
+| 1 | "A student sits at PC-07 and opens Tide." | On S: launch agent, enter code + roll + seat 7 | Pre-flight: **Online ✓ (monitored), Copilot ! (flagged), files indexed ✓**. Seat 7 appears **amber** |
+| 2 | "Questions don't exist anywhere until now. Not on Classroom, not in email." | Click **Start** | Timer bar on S; `C:\Exam\22BCS107\` gets **Set A** (odd seat). Even seats get Set B |
+| 3 | "Real tools are fine — and so is the internet." | Open VS Code on S, browse to a normal site | Nothing flagged. Timeline shows "VS Code" in grey |
+| 4 | "Now the classic." | Open `chatgpt.com` in Chrome — it **loads** | Tab closes in ~1 s, red screen on S; seat 7 **red**: "ChatGPT — closed", screenshot attached |
+| 5 | "Something no block list knows." | Open `poe.com` | "poe.com — AI assistant · **Jev 0.97**" → auto-closed. Point at the Jev badge |
+| 6 | "It's not just websites." | Open LM Studio / Ollama (a local AI, no internet needed) | "LM Studio — closed", app killed |
+| 7 | "Old code saved from home." | Open `Documents\old\dsa_lab5.cpp` in VS Code, paste it into `main.c` | "Pre-exam file opened", then "Old code reused · 100 %" with the original path |
+| 8 | "The teacher sees the story, not noise." | Click seat 7 | Timeline, screenshots, Jev confidence, code-growth chart |
+| 9 | "Submit." | Click **Submit** on S | Seat shows ✓. **Results** tab: submissions, similarity pairs, CSV export |
+| 10 | "For stricter labs, flip one switch: internet blocked…" | Show the Setup toggle / production slide | ARCHITECTURE §9 |
 
 **Recovery:** if a step misfires, open the **Simulate** menu in the console and trigger that
 event on seat 7. It goes through the same pipeline.
@@ -66,10 +67,16 @@ installed by IT. Students aren't admins, so they can't stop it.
 Their seat is missing from the grid ("59/60 joined") and they never receive the questions. In
 production it starts automatically at login.
 
-**Q: Why not just block the internet with a firewall?**
-We do in production: the service can push Windows Firewall rules. But a phone hotspot or USB
-tethering creates a *new* adapter that the student controls, and students with admin rights
-remove rules. Detection is still needed, and detection is what proves it happened.
+**Q: Why allow the internet at all?**
+Unplugging the LAN is what fails today: students reconnect it, use a hotspot, or grab answers
+before unplugging. And blocking breaks legitimate work (docs, package installs, Wireshark labs).
+Tide makes the internet safe to leave on: every site is checked, forbidden ones close instantly,
+and everything else is on the teacher's timeline.
+
+**Q: Can a lab still go fully offline?**
+Yes — one switch on the Setup page. In *internet blocked* mode, questions are only released to PCs
+confirmed offline, and going online (LAN, Wi-Fi, hotspot) turns the screen red until it's off.
+In production the Windows service can also push firewall rules.
 
 **Q: Why is Jev needed? Isn't a block list enough?**
 Block lists catch the famous sites. New AI sites appear weekly, and there are wrappers, renamed
@@ -92,25 +99,26 @@ AI/messaging/remote matches. Everything else is amber for a human, and the teach
 with one click. Tide never punishes anyone. It shows evidence.
 
 **Q: Students use VMware. Can't they run a browser inside the VM?**
-The VM's internet goes through the host's adapters, so internet detection still fires. The lab
-policy uses host-only VM networking, and pre-flight can read `.vmx` files to flag NAT/bridged
-adapters. We can't see *inside* the guest's windows; we say that openly.
+We see the VMware window, not the guest's browser. For those labs use *internet blocked* mode with
+host-only VM networking, so the VM has no way out; pre-flight can also read `.vmx` files to flag
+NAT/bridged adapters. We say this limit openly.
 
 **Q: Downloading the test early from Classroom?**
-The test is never on Classroom. It's uploaded to Tide and released at Start, and only to seats
-that pre-flight confirmed are offline.
+The test is never on Classroom. It's uploaded to Tide and released only at Start. And Classroom,
+Gmail and Drive are on the block list during the exam.
 
 **Q: Old code on the PC or a pen drive?**
 Pre-flight fingerprints source files already on disk. Opening one, or code in the exam folder
 that matches one, raises a flag with the original path. USB insertion is flagged too. Mailed code
-needs internet, which is detected.
+means opening Gmail/Outlook, which is closed instantly.
 
 **Q: Copying from a neighbour?**
 Neighbours get different sets (odd/even). Established connections to other lab PCs are flagged.
 After submission, similarity across all submissions shows matching pairs.
 
 **Q: Local LLMs (Ollama, LM Studio)?**
-On the deny list by process and PE metadata; unknown GUIs go to Jev by window title.
+They need no internet, so this is where app monitoring matters most. Known ones are on the deny
+list (by process and PE metadata, so renaming doesn't help); unknown AI apps go to Jev by window title.
 
 **Q: Incognito, a different browser, a renamed exe?**
 We read the address bar through Windows UI Automation, which works in incognito and across
@@ -127,6 +135,10 @@ itself runs 60 seats (59 simulated). SQLite handles this easily.
 **Q: Privacy?**
 Runs only during the exam, exits after submit. Collects metadata and screenshots only on flags.
 Data stays on the teacher's machine.
+
+**Q: A site that isn't AI but has answers (Stack Overflow, GeeksforGeeks)?**
+Jev labels it "web lookup" and it's flagged for the teacher (not auto-closed), so the teacher
+decides. A lab that wants zero lookups can add those sites to the block list or use *internet blocked* mode.
 
 **Q: What can't it catch?**
 A phone under the desk, a friend whispering, anything inside a VM's windows, and an admin

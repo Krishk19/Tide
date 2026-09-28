@@ -156,12 +156,14 @@ def scan_extensions(ext_dir: Path) -> list[str]:
 class ExtensionWatcher:
     def __init__(self, ext_dir: Path) -> None:
         self.ext_dir = ext_dir
-        self._known: set[str] = set()
+        self._known: set[str] | None = None     # None until pre-flight reports the baseline
 
     def set_baseline(self, names: list[str]) -> None:
         self._known = set(names)
 
     def poll(self) -> list[Signal]:
+        if self._known is None:
+            return []
         new = [n for n in scan_extensions(self.ext_dir) if n not in self._known]
         self._known.update(new)
         return [Signal(kind=Kind.EXTENSION, data={"names": new})] if new else []

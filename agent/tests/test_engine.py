@@ -67,6 +67,7 @@ async def test_unknown_window_goes_to_server_allowed_is_event(tmp_path):
 async def test_internet_overlay_is_persistent_until_offline_even_without_server(tmp_path):
     """Review focus #4: enforcement is local; send() failing doesn't matter."""
     e, p, ui, sent, _ = make(tmp_path)
+    e.policy = Policy.from_apps(PRESETS["networking"], internet="blocked")
 
     async def offline_send(m):
         return False
@@ -113,3 +114,10 @@ async def test_server_messages(tmp_path):
     await e.on_server({"t": "end", "reason": "time"})
     assert submitted and submitted[0][1] is True and e.done
     assert ui.calls[-1][0] == "done"
+
+
+async def test_internet_allowed_is_just_a_timeline_event(tmp_path):
+    e, p, ui, sent, _ = make(tmp_path)          # default policy: internet allowed
+    await e.on_signal(Signal(kind=Kind.NETWORK, data={"internet": True, "via": "Wi-Fi"}))
+    assert [m["t"] for m in sent] == ["event"]
+    assert not any(c[0] == "block" for c in ui.calls)

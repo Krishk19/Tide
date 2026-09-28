@@ -322,7 +322,7 @@
     <button data-go="s-pre">Pre-flight</button>
     <button data-go="s-exam">Exam</button>
     <button data-go="s-block">Blocked</button>
-    <button data-go="s-net">No internet</button>
+    <button data-go="s-net">Blocked mode: online</button>
     <button data-go="s-done">Done</button>
   </div>
   <div class="note">Click a seat to open its drawer · "Play demo" on Live</div>
@@ -384,7 +384,14 @@
     </div>
     <div class="apps" id="apps"></div>
     <div class="blocked"><svg><use href="#i-shield"/></svg>
-      <div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, internet. <span style="opacity:.7">Browsers only for local files. Unknown apps are checked by Jev.</span></div>
+      <div><b>Always blocked:</b> AI assistants, messengers, email, remote desktop, file sharing. <span style="opacity:.7">Unknown sites and apps are checked by Jev.</span></div>
+    </div>
+
+    <hr class="sep" />
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><label class="lbl" style="margin:0">Internet</label>
+        <div class="sub" style="font-size:12px;margin-top:4px">Students stay online. Every site is watched; blocked ones close instantly.</div></div>
+      <div class="seg"><button class="on">Allowed · monitored</button><button>Blocked</button></div>
     </div>
 
     <div class="setup-foot">
@@ -414,11 +421,10 @@
       <div class="legend">
         <span><i style="background:var(--ok)"></i>Ready</span>
         <span><i style="background:var(--warn)"></i>Check</span>
-        <span><i style="background:var(--crit)"></i>Internet</span>
         <span><i style="border:1.5px dashed #C2C9D2"></i>Waiting</span>
       </div>
       <button class="btn primary lg" data-go="live" style="justify-content:center">Start exam · 90 min</button>
-      <div class="sub" style="font-size:12px">Red seats won't receive questions.</div>
+      <div class="sub" style="font-size:12px">Internet allowed · monitored</div>
     </div>
     <div class="card grid-card">
       <div class="grid-head"><h2>Seats</h2><span class="sub">· pre-flight</span></div>
@@ -534,7 +540,7 @@
       <div class="body">
         <h1>Getting ready</h1>
         <div class="checks">
-          <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Offline</div><div class="cd">No internet on any adapter</div></div></div>
+          <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Online</div><div class="cd">Internet allowed · activity is monitored</div></div></div>
           <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Apps</div><div class="cd">Nothing blocked running</div></div></div>
           <div class="check warn"><div class="ci"><svg><use href="#i-warn"/></svg></div><div><div class="ct">GitHub Copilot found</div><div class="cd">Teacher has been told</div></div></div>
           <div class="check ok"><div class="ci"><svg><use href="#i-check"/></svg></div><div><div class="ct">Files indexed</div><div class="cd">214 files</div></div></div>
@@ -724,7 +730,6 @@ function renderFeed(){ feed.innerHTML = alerts.map((a,i)=>alertHTML(a,a._new)).j
 const lobbySeats = seats.map(s=>({...s,lstate:"ok",lnote:"Ready"}));
 [58,59,60].forEach(n=>Object.assign(lobbySeats[n-1],{lstate:"wait",lnote:""}));
 Object.assign(lobbySeats[6],{lstate:"warn",lnote:"Copilot found"});
-Object.assign(lobbySeats[18],{lstate:"crit",lnote:"Wi-Fi online"});
 Object.assign(lobbySeats[44],{lstate:"warn",lnote:"Copilot found"});
 document.getElementById("lobbySeats").innerHTML = lobbySeats.map(s=>seatHTML(s,"lobby")).join("");
 
@@ -816,8 +821,8 @@ const STEPS = [
   [1400, ()=>hit(7,"crit",{t:"ChatGPT — closed",m:["rule"],acted:1,time:"10:42"},{time:"10:42",sev:"crit",x:"ChatGPT · chatgpt.com",flag:1,shot:shotGPT,acted:"Auto-closed"})],
   [2600, ()=>{ toast("PC-07 opens poe.com (not on any list)"); }],
   [1500, ()=>hit(7,"crit",{t:"Poe — AI assistant",m:["jev",0.96],acted:1,time:"10:43"},{time:"10:43",sev:"crit",x:"Poe · poe.com",flag:1,shot:shotPoe,conf:0.96,acted:"Auto-closed"})],
-  [2600, ()=>{ toast("PC-07 joins a phone hotspot"); }],
-  [1400, ()=>hit(7,"crit",{t:"Internet via Wi-Fi “Redmi”",m:["rule"],time:"10:44"},{time:"10:44",sev:"crit",x:"Internet reachable · Wi-Fi “Redmi Note”",flag:1})],
+  [2600, ()=>{ toast("PC-07 opens LM Studio (local AI, no internet needed)"); }],
+  [1400, ()=>hit(7,"crit",{t:"LM Studio — closed",m:["rule"],acted:1,time:"10:44"},{time:"10:44",sev:"crit",x:"LM Studio · local AI app",flag:1,acted:"Auto-closed"})],
   [2600, ()=>{ seats[6].now="VS Code"; renderLive(); toast("PC-07 opens D:\\old\\dsa_lab5.cpp"); }],
   [1400, ()=>hit(7,"crit",{t:"Old code reused · 82%",m:["rule"],time:"10:46"},{time:"10:46",sev:"crit",x:"Old code · D:\\old\\dsa_lab5.cpp → main.c (82%)",flag:1,shot:shotVS})],
   [1600, ()=>{ openDrawer(7); toast("The teacher sees the story"); }],

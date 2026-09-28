@@ -70,6 +70,7 @@ def test_extensions(tmp_path):
     (ext / "ms-vscode.cpptools-1.20").mkdir()
     assert scan_extensions(ext) == ["GitHub Copilot"]
     w = ExtensionWatcher(ext)
+    assert w.poll() == []               # silent until pre-flight sets the baseline (no duplicate flag)
     w.set_baseline(["GitHub Copilot"])
     assert w.poll() == []
     (ext / "codeium.codeium-1.8").mkdir()
@@ -85,5 +86,7 @@ def test_preflight_kills_denied_and_reports(tmp_path):
     r = run_preflight(p, tmp_path / "noext", [tmp_path], tmp_path / "Exam")
     assert p.killed == [40] and r.denied_closed == ["Discord"] and r.internet is True
     assert preflight_message(r)["inventory_count"] == 1
-    states = {c["id"]: c["state"] for c in preflight_checks(r)}
+    states = {c["id"]: c["state"] for c in preflight_checks(r, internet_blocked=True)}
     assert states == {"internet": "fail", "apps": "ok", "extensions": "ok", "files": "ok"}
+    allowed = {c["id"]: c for c in preflight_checks(r)}
+    assert allowed["internet"]["state"] == "ok" and allowed["internet"]["label"] == "Online"
