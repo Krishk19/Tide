@@ -1,0 +1,38 @@
+TIDE - how to run  (Windows)
+============================
+
+You need two PCs on the same Wi-Fi (or one PC playing both roles).
+Install Python 3.12 first: https://www.python.org/downloads/  (tick "Add python.exe to PATH").
+
+
+TEACHER PC
+----------
+  First time only:   double-click  "TEACHER - 1 Setup (once).bat"
+                     (paste your OpenRouter key when asked, or press Enter to skip)
+
+  Every time:        double-click  "TEACHER - 2 Start.bat"
+                     -> first time only: click Yes when Windows asks for permission
+                     -> the console opens in the browser, PIN 2468
+                     -> Setup page: type a title, attach your question PDF, press Create
+                     -> tell students the join code shown in the Lobby
+                     -> when everyone is in, press Start
+
+  Want a full-looking lab for a presentation?
+                     double-click  "TEACHER - 2 Start (mock 60-seat room).bat" instead.
+                     It adds 59 simulated students around the real ones.
+
+  Keep the black "Tide - TEACHER" window open. Closing it stops Tide.
+  Every start is a clean slate: export results (Results -> Export CSV) before closing.
+
+
+STUDENT PC
+----------
+  First time only:   double-click  "STUDENT - 1 Setup (once).bat"
+
+  Every time:        double-click  "STUDENT - 2 Start.bat"
+                     -> type the join code, your roll number and seat number, press Join
+                     -> if it says "Teacher not found", type the Teacher IP shown in
+                        the teacher's black Tide window into "Teacher address"
+
+
+More detail: docs/SETUP_TWO_PCS.md   Demo script: docs/DEMO.md
